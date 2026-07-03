@@ -1,36 +1,202 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 表格数据工作台 (Table Data Workbench)
 
-## Getting Started
+基于 AI 自然语言处理的桌面端数据处理工具。上传 Excel 表格后，通过中文自然语言指令完成排序、筛选、求和、去重、多表匹配、合并、数据清洗等操作，无需写公式或代码。
 
-First, run the development server:
+> 项目形态：Electron 桌面应用（兼容浏览器访问）  
+> 所有数据均在本地处理，不上传用户文件到外部服务器
+
+---
+
+## 技术栈
+
+| 层级 | 技术 |
+|---|---|
+| 框架 | Next.js 16 (App Router) |
+| 前端 | React 19 + TypeScript |
+| 样式 | Tailwind CSS v4 |
+| 桌面壳 | Electron 35 + electron-builder 26 (NSIS 安装包) |
+| 文件解析 | xlsx (SheetJS) |
+| AI 引擎 | DeepSeek Chat API |
+| 本地存储 | IndexedDB |
+| 测试 | Vitest v4 (74 个用例) |
+
+---
+
+## 核心功能
+
+### 文件管理
+- 上传 .xlsx / .xls / .csv 文件
+- 多 sheet 切换
+- 多文件任务管理
+
+### AI 智能数据处理
+
+7 种操作，全部通过自然语言驱动：
+
+| 操作 | 说明 | 支持多列 | 支持分组 |
+|---|---|---|---|
+| 排序 | 按指定列升序/降序 | × | × |
+| 筛选 | 按条件过滤行 | × | × |
+| **求和（聚合）** | 单列或多列求合计 | ✅ | ✅ |
+| 去重 | 按关键列去重 | × | × |
+| 多表匹配 | 多表按关键字段关联 | × | × |
+| 多表合并 | 多个表纵向拼接 | × | × |
+| 清洁 | 移除空行、修复异常值 | × | × |
+
+### 数据质量检查
+- 重复数据检测
+- 空值/空白单元格统计
+- 异常值发现（非法邮箱、手机号、身份证格式等）
+- 自动修复建议
+
+### 其他
+- 操作历史记录与恢复
+- API Key 内置设置面板
+- 多列求和与分组聚合
+
+---
+
+## 界面布局
+
+```
+左侧栏（文件池）  │    中间栏（工作区）      │  右侧栏（任务面板）
+                  │                          │
+ 📁 文件池     ⚙  │  数据预览区域（原始数据） │  执行计划（5 步骤）
+                  │                          │
+ [上传文件]        │  AI 输入框（输入指令）    │  结果摘要
+                  │                          │
+ □ 销售表         │  结果预览区域（处理后数据）│  操作历史
+ □ 员工表         │                          │
+ □ 工资表         │                          │
+                  │                          │
+ 共 4 个文件      │                          │
+```
+
+---
+
+## 安装与启动
+
+### 桌面版安装
+
+1. 下载 `Table Data Workbench Setup 0.1.0.exe`
+2. 双击安装，选择安装目录
+3. 安装完成后桌面出现快捷方式，双击启动
+
+### 开发者模式（网页版）
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```
+浏览器访问 `http://localhost:3000`
+
+### 桌面开发模式
+
+```bash
+npm run dev:electron
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 打包构建
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run package
+```
+产物：`release/Table Data Workbench Setup 0.1.0.exe`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## 指令示例
 
-To learn more about Next.js, take a look at the following resources:
+### 求和 / 聚合
+```
+统计销售额
+计算基本工资、绩效奖金、加班补贴的总和
+按部门统计工资
+每个部门的平均工资
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 排序
+```
+按销售额从高到低排序
+按姓名升序排列
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### 筛选
+```
+筛选出销售部的人员
+筛选销售额大于 10000 的数据
+```
 
-## Deploy on Vercel
+### 去重
+```
+去重
+删除重复的姓名
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### 匹配（类似 VLOOKUP）
+```
+匹配姓名关联两个表
+按工号匹配
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### 合并
+```
+合并两个表
+把表拼到一起
+```
+
+### 数据清洗
+```
+清洗数据
+清理空白行
+```
+
+---
+
+## 配置 API Key
+
+软件依赖 DeepSeek API 进行智能语义解析。如不配置 Key，自动降级到规则匹配模式（仅支持简单关键词指令）。
+
+1. 点击左侧栏标题旁的 **齿轮图标 ⚙**
+2. 输入你的 DeepSeek API Key
+3. 点击「保存」，Key 自动存储在本地
+
+> 获取 Key：[platform.deepseek.com](https://platform.deepseek.com) → 注册 → 创建 API Key
+
+---
+
+## 常见问题
+
+**软件打开后空白？**
+重新安装最新版本，确保正确安装。
+
+**AI 不能理解复杂指令？**
+检查 API Key 是否配置，或尝试简化指令描述。
+
+**文件存哪里？**
+所有数据存储在本地 IndexedDB，关闭软件不丢失。
+
+**发给别人怎么用？**
+对方安装后需在设置中配置自己的 DeepSeek API Key（免费注册）。
+
+---
+
+## 开发
+
+```bash
+# 安装依赖
+npm install
+
+# 开发模式（网页）
+npm run dev
+
+# 开发模式（桌面）
+npm run dev:electron
+
+# 运行测试
+npm test
+
+# 打包
+npm run package
+```
+
+*版本 0.1.0 · 2026-06-27*

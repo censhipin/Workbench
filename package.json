@@ -2,25 +2,41 @@
   "name": "workbench",
   "version": "0.1.0",
   "private": true,
+  "main": "electron-out/main.js",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dev:electron": "tsc -p electron/tsconfig.json && concurrently -k \"next dev -p 3000\" \"wait-on http://localhost:3000 && electron .\"",
+    "build:electron": "tsc -p electron/tsconfig.json && next build && node scripts/prepare-standalone.js",
+    "package": "npm run build:electron && electron-builder --win --config electron-builder.json",
+    "package:dir": "npm run build:electron && electron-builder --win --config electron-builder.json --dir"
   },
   "dependencies": {
     "next": "16.2.9",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "concurrently": "^9.1.0",
+    "electron": "^35.0.0",
+    "electron-builder": "^26.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.9",
+    "wait-on": "^8.0.0"
+  },
+  "optionalDependencies": {
+    "@next/swc-linux-x64-gnu": "^16.2.9"
   }
 }

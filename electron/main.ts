@@ -1,0 +1,167 @@
+import { app, BrowserWindow } from 'electron';
+import { spawn, ChildProcess, execFileSync } from 'child_process';
+import * as path from 'path';
+import * as http from 'http';
+
+let mainWindow: BrowserWindow | null = null;
+let serverProcess: ChildProcess | null = null;
+
+const isDev = !app.isPackaged;
+const PORT = Number(process.env.PORT) || 3000;
+
+/** 生产环境：用 Electron 内置的 Node.js 启动 standalone server */
+function startProdServer(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    // server.js 在 extraResources 中，位于 resourcesPath 根目录
+    const serverDir = process.resourcesPath;
+    const serverPath = path.join(serverDir, 'server.js');
+
+    // 使用 Electron 内置的 Node.js 可执行文件（ELECTRON_RUN_AS_NODE=1 使它作为普通 Node.js 运行）
+    serverProcess = spawn(process.execPath, [serverPath], {
+      cwd: serverDir,
+      env: {
+        ...process.env,
+        NODE_ENV: 'production',
+        PORT: String(PORT),
+        ELECTRON_RUN_AS_NODE: '1',
+      },
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
+    serverProcess.stdout?.on('data', (data: Buffer) => {
+      console.log(`[next] ${data.toString().trim()}`);
+    });
+
+    serverProcess.stderr?.on('data', (data: Buffer) => {
+      console.log(`[next] ${data.toString().trim()}`);
+    });
+
+    serverProcess.on('error', (err) => {
+      console.error('[server] Failed to start:', err);
+      reject(err);
+    });
+
+    serverProcess.on('exit', (code) => {
+      if (code !== 0) {
+        console.error(`[server] Exited with code ${code}`);
+      }
+    });
+
+    // 轮询等待 Next.js 就绪
+    let attempts = 0;
+    const maxAttempts = 90;
+    const check = () => {
+      attempts++;
+      const req = http.get(`http://localhost:${PORT}`, (res) => {
+        res.resume();
+        resolve();
+      });
+      req.on('error', () => {
+        req.destroy();
+        if (attempts >= maxAttempts) {
+          reject(new Error(`Server not ready after ${maxAttempts} attempts`));
+        } else {
+          setTimeout(check, 1000);
+        }
+      });
+      req.end();
+    };
+    check();
+  });
+}
+
+/** 开发模式：用 npm script 启动 next dev */
+function startDevServer(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    // 在 Windows 上直接调用 node_modules/.bin/next 可能有问题
+    const projectRoot = app.getAppPath();
+    const nextBin = path.join(projectRoot, 'node_modules', 'next', 'dist', 'bin', 'next');
+
+    serverProcess = spawn(process.execPath, [nextBin, 'dev', '-p', String(PORT)], {
+      cwd: projectRoot,
+      env: {
+        ...process.env,
+        NODE_ENV: 'development',
+        PORT: String(PORT),
+      },
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
+    serverProcess.stdout?.on('data', (data: Buffer) => {
+      process.stdout.write(`[next] ${data}`);
+    });
+    serverProcess.stderr?.on('data', (data: Buffer) => {
+      process.stderr.write(`[next] ${data}`);
+    });
+
+    let attempts = 0;
+    const maxAttempts = 90;
+    const check = () => {
+      attempts++;
+      const req = http.get(`http://localhost:${PORT}`, () => {
+        req.destroy();
+        resolve();
+      });
+      req.on('error', () => {
+        req.destroy();
+        if (attempts >= maxAttempts) {
+          reject(new Error(`Dev server not ready after ${maxAttempts} attempts`));
+        } else {
+          setTimeout(check, 1000);
+        }
+      });
+      req.end();
+    };
+    check();
+  });
+}
+
+function createWindow() {
+  mainWindow = new BrowserWindow({
+    width: 1400,
+    height: 900,
+    minWidth: 1024,
+    minHeight: 700,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+    autoHideMenuBar: true,
+  });
+
+  const loadApp = isDev ? startDevServer() : startProdServer();
+
+  loadApp
+    .then(() => mainWindow?.loadURL(`http://localhost:${PORT}`))
+    .catch((err) => {
+      console.error('Failed to start server:', err);
+      mainWindow?.loadURL(`data:text/html,<h1>启动失败</h1><p>${encodeURIComponent(String(err))}</p>`);
+    });
+
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+  });
+}
+
+app.whenReady().then(() => {
+  createWindow();
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
+});
+
+app.on('window-all-closed', () => {
+  if (serverProcess) {
+    serverProcess.kill();
+    serverProcess = null;
+  }
+  if (process.platform !== 'darwin') app.quit();
+});
+
+app.on('before-quit', () => {
+  if (serverProcess) {
+    serverProcess.kill();
+    serverProcess = null;
+  }
+});

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
+  "appId": "com.workbench.table-processor",
+  "productName": "Table Data Workbench",
+  "directories": {
+    "output": "release"
+  },
+  "files": [
+    "electron-out/**/*.js",
+    ".next/standalone/**/*",
+    ".next/static/**/*",
+    "public/**/*"
+  ],
+  "extraResources": [
+    {
+      "from": ".next/standalone",
+      "to": ".",
+      "filter": ["**/*"]
+    }
+  ],
+  "extraMetadata": {
+    "main": "electron-out/main.js"
+  },
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      }
+    ]
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true
+  },
+  "asarUnpack": [
+    "node_modules/next/**"
+  ]
+}
