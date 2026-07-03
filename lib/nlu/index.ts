@@ -63,6 +63,17 @@ export async function parseIntentWithAI(
   addTraceStep('parse', 'ok', '调用 DeepSeek AI');
   const aiResult = await deepseekUnderstand(prompt, tableName, availableColumns, rows);
 
+  // ★ 额度/Key 无效 → 不降级，直接返回错误
+  if (aiResult.isQuotaError) {
+    setTracePath('AI', false, false, aiResult.error);
+    addTraceStep('parse', 'failed', aiResult.error || 'API Key 无效或额度不足');
+    return {
+      intent: null,
+      resolution: { target: '', candidates: [], isResolved: false, message: aiResult.error || 'API Key 无效或额度不足' },
+      aiUsed: false,
+    };
+  }
+
   if (aiResult.success && aiResult.plan && aiResult.plan.action !== 'unknown') {
     setTracePath('AI', true, true);
     setTraceAIOutput(undefined, aiResult.plan);

@@ -156,6 +156,13 @@ async function callDeepSeek(
 
   if (!response.ok) {
     const errBody = await response.text().catch(() => '');
+    const isQuotaError = response.status === 401 || response.status === 402
+      || errBody.toLowerCase().includes('insufficient')
+      || errBody.toLowerCase().includes('quota')
+      || errBody.toLowerCase().includes('insufficient_balance');
+    if (isQuotaError) {
+      throw new QuotaError(`API Key 无效或额度不足 (${response.status})，请在设置中重新配置`);
+    }
     throw new Error(`DeepSeek proxy error: ${response.status} ${errBody}`);
   }
 
@@ -251,6 +258,24 @@ export interface DeepSeekResult {
   success: boolean;
   plan: TaskPlan | null;
   error?: string;
+  isQuotaError?: boolean;
+}
+
+/**
+ * 判断 DeepSeek 错误是否是额度/Key 问题
+ */
+export function isQuotaError(err: unknown): boolean {
+  return err instanceof QuotaError;
+}
+
+/**
+ * 自定义错误类：API 额度不足或 Key 无效
+ */
+export class QuotaError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'QuotaError';
+  }
 }
 
 /**
@@ -272,10 +297,12 @@ export async function deepseekUnderstand(
     const plan = parseResponse(raw);
     return { success: true, plan };
   } catch (err) {
+    const isQuota = err instanceof QuotaError;
     return {
       success: false,
       plan: null,
       error: err instanceof Error ? err.message : String(err),
+      isQuotaError: isQuota,
     };
   }
 }

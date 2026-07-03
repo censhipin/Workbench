@@ -34,6 +34,7 @@ import ConfirmationDialog from '@/components/common/ConfirmationDialog';
 import DataAudit from '@/components/taskpanel/DataAudit';
 import EmptyState from '@/components/common/EmptyState';
 import DebugTraceModal from '@/components/debug/DebugTraceModal';
+import SettingsDialog from '@/components/common/SettingsDialog';
 
 export default function Home() {
   // ── 文件状态 ────────────────────────────────────────────
@@ -87,6 +88,21 @@ export default function Home() {
   // ── Debug ────────────────────────────────────────────────
   const [debugMode, setDebugMode] = useState(false);
   const [pipelineTrace, setPipelineTrace] = useState<PipelineTrace | null>(null);
+
+  // ── API Key 强制配置 ───────────────────────────────────────
+  const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
+  const [hasApiKey, setHasApiKey] = useState(false);
+
+  useEffect(() => {
+    const key = getApiKey();
+    const hasKey = !!key && key.length > 10;
+    setHasApiKey(hasKey);
+    if (!hasKey) {
+      // 延迟弹出，确保其他 UI 已渲染
+      const timer = setTimeout(() => setShowApiKeyDialog(true), 500);
+      return () => clearTimeout(timer);
+    }
+  }, []);
 
   useEffect(() => {
     onTraceUpdate(setPipelineTrace);
@@ -272,6 +288,14 @@ export default function Home() {
         dataset.rows,
         allFileNames
       );
+
+      // ★ AI 额度/Key 无效 → 弹设置框
+      if (!result.intent && !result.aiUsed && result.resolution?.message?.includes('API Key')) {
+        setError(result.resolution.message);
+        setShowApiKeyDialog(true);
+        setIsRunning(false);
+        return;
+      }
 
       if (!result.intent || !result.intent.operation) {
         const fallback = parseAndResolve(promptText, cols, allFileNames, dataset.rows);
@@ -767,6 +791,23 @@ export default function Home() {
       {/* Debug mode: Pipeline Trace modal */}
       {debugMode && pipelineTrace && (
         <DebugTraceModal trace={pipelineTrace} onClose={() => setDebugMode(false)} />
+      )}
+
+      {/* API Key 强制配置弹窗 */}
+      {showApiKeyDialog && (
+        <div className="fixed inset-0 z-[200] bg-black/40 flex items-center justify-center">
+          <div className="bg-white rounded-xl shadow-2xl border border-zinc-200 w-[400px] max-w-[90vw] p-6">
+            <h3 className="text-base font-semibold text-zinc-800 mb-2">配置 DeepSeek API Key</h3>
+            <p className="text-sm text-zinc-500 mb-4">首次使用需要配置 API Key，请前往 <span className="font-mono text-zinc-600">platform.deepseek.com</span> 获取。</p>
+            <SettingsDialog onClose={() => {
+              const key = getApiKey();
+              if (key && key.length > 10) {
+                setHasApiKey(true);
+                setShowApiKeyDialog(false);
+              }
+            }} />
+          </div>
+        </div>
       )}
     </div>
   );

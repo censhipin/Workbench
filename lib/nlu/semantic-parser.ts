@@ -866,11 +866,19 @@ export class RuleBasedSemanticParser implements SemanticTaskParser {
   /** 操作关键词，用于从提示词头移除 */
   private static FILTER_OP_KW = ['筛选', '筛选出', '过滤', '过滤出', '找出', '找到', '查询', '查看'];
 
+  /** 噪音词 — 语气词/口语词，出现在提示词中应被忽略 */
+  private static NOISE_WORDS = new Set([
+    '一下', '一个', '一些', '这个', '那个', '哪个', '这些', '那些',
+    '看看', '想要', '需要', '可以', '能', '会', '怎么', '如何',
+    '帮', '请', '麻烦', '帮忙', '帮我', '您好', '你好', '谢谢', '感谢',
+    '数据', '信息', '记录', '情况', '列表', '文件', '表格', '表中',
+  ]);
+
   /** 无意义后缀（复合拆解后可忽略） */
   private static MEANINGLESS_SUFFIXES = ['的员工', '员工', '的人', '的人', '信息', '数据', '记录', '名单', '情况', '资料', '列表'];
 
   /**
-   * 去除操作词和无意义尾缀，保留干净的条件文本
+   * 去除操作词、噪音词和无意义尾缀，保留干净的条件文本
    */
   private cleanFilterPrompt(lower: string): string {
     let cleaned = lower;
@@ -880,10 +888,12 @@ export class RuleBasedSemanticParser implements SemanticTaskParser {
         break;
       }
     }
+    // 去噪音词（"一下"、"看看"等口语词）
+    for (const noise of RuleBasedSemanticParser.NOISE_WORDS) {
+      cleaned = cleaned.replace(noise, '');
+    }
     // 去尾缀（连续去除，如"标准的数据"→ "标准"）
-    // 先用字符级的去尾：去掉末尾的"的"及其后面的无意义词
     cleaned = cleaned.replace(/(?:的(?:员工|数据|信息|记录|名单|情况|资料)?|员工|的人)$/, '');
-    // 再用列表完整匹配一次
     for (const suffix of RuleBasedSemanticParser.MEANINGLESS_SUFFIXES) {
       if (cleaned.endsWith(suffix)) {
         cleaned = cleaned.slice(0, -suffix.length).trim();
@@ -1304,11 +1314,10 @@ export class RuleBasedSemanticParser implements SemanticTaskParser {
   }
 
   /**
-   * 模块3+4: composeConditions — 语义解释 + 字段映射 + 条件组合
+   * 模块3+4: composeConditions — 条件组合
    *
-   * Step 1: SemanticInterpreter 将 parsed 解释为语义条件（不依赖列名）
-   * Step 2: 原始 columnHint 能直接匹配列名 → 优先用匹配到的列
-   * Step 3: 匹配不到的用语义字段名做兜底
+   * 规则：解析不到有效列名的 value-only 条件 → 丢弃（噪音词防御）
+   *       有明确 columnHint 但映射不到的 → 保留 hint 原文
    */
   private composeConditions(
     parsed: ParsedCondition[],
@@ -1344,23 +1353,22 @@ export class RuleBasedSemanticParser implements SemanticTaskParser {
 
       // 优先级3: 值也可能是列值（如"技术部"→部门）
       if (!column) {
-        const valueStr = String(sc.value);
-        if (/^\d+(\.\d+)?$/.test(valueStr)) {
-          column = sc.semanticField;
-        } else {
-          const conceptCol = this.matchConceptToColumn(sc.semanticField, columns);
-          if (conceptCol) {
-            column = conceptCol;
-          } else {
-            column = sc.semanticField;
-          }
-        }
+        const conceptCol = this.matchConceptToColumn(sc.semanticField, columns);
+        if (conceptCol) column = conceptCol;
+      }
+
+      // ★ 关键规则：纯值条件解析不到任何列 → 丢弃（防止"一下"等噪音词）
+      if (!column && p.isValueOnly) continue;
+
+      // 有明确 columnHint 但映射不到 → 保留 hint 原文
+      if (!column) {
+        column = p.columnHint || String(sc.value);
       }
 
       result.push({
-        column: column || String(sc.value),
+        column,
         operator: this.mapOpToFilterCondition(sc.operator),
-        value: typeof sc.value === 'number' ? String(sc.value) : sc.value,
+        value: typeof sc.value === 'number' ? String(sc.value) : String(sc.value),
         logic: sc.logic || 'AND',
       });
     }
