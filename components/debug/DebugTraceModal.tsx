@@ -56,7 +56,7 @@ export default function DebugTraceModal({ trace, onClose }: DebugTraceModalProps
                   <div className="flex-1 min-w-0">
                     <span className="font-semibold text-zinc-800">{s.stage}</span>
                     <span className="text-zinc-400 mx-1">·</span>
-                    <span>{s.detail}</span>
+                    <span>{String(s.detail)}</span>
                   </div>
                 </div>
               ))}
