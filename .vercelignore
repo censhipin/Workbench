@@ -1,0 +1,6 @@
+node_modules
+.next
+electron-out
+.git
+coverage
+*.exe
