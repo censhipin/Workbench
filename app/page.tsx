@@ -89,18 +89,17 @@ export default function Home() {
   const [debugMode, setDebugMode] = useState(false);
   const [pipelineTrace, setPipelineTrace] = useState<PipelineTrace | null>(null);
 
-  // ── API Key 强制配置 ───────────────────────────────────────
+  // ── API Key 配置状态 ─────────────────────────────────────
   const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
-  const [hasApiKey, setHasApiKey] = useState(false);
+  const [apiKeyMode, setApiKeyMode] = useState<'settings' | 'execute' | 'audit'>('settings');
+  // 当 Key 配好后的回调
+  const pendingActionRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     const key = getApiKey();
     const hasKey = !!key && key.length > 10;
-    setHasApiKey(hasKey);
     if (!hasKey) {
-      // 延迟弹出，确保其他 UI 已渲染
-      const timer = setTimeout(() => setShowApiKeyDialog(true), 500);
-      return () => clearTimeout(timer);
+      // Key 不存在 → 用户操作时再弹，启动时不弹
     }
   }, []);
 
@@ -252,6 +251,14 @@ export default function Home() {
   // ── 提交 AI 处理 ────────────────────────────────────────
   const handleSubmit = useCallback(async () => {
     if (!promptText.trim() || isRunning) return;
+
+    // ★ 检查 API Key
+    const existingKey = getApiKey();
+    if (!existingKey || existingKey.length < 10) {
+      setApiKeyMode('execute');
+      setShowApiKeyDialog(true);
+      return;
+    }
 
     setIsRunning(true);
     setError(null);
@@ -565,6 +572,13 @@ export default function Home() {
   // ── 审计 ────────────────────────────────────────────────
   const handleAuditStart = useCallback(() => {
     if (!currentSheet) return;
+    // ★ 检查 API Key
+    const existingKey = getApiKey();
+    if (!existingKey || existingKey.length < 10) {
+      setApiKeyMode('audit');
+      setShowApiKeyDialog(true);
+      return;
+    }
     setInferences(runQualityCheck(currentSheet.rows, currentSheet.columns).inferences);
     setShowAudit(true);
   }, [currentSheet]);
@@ -620,6 +634,10 @@ export default function Home() {
         versionLabel={currentVersion ? `版本 v${currentVersion.version}` : undefined}
         debugMode={debugMode}
         onToggleDebug={() => setDebugMode(prev => !prev)}
+        onOpenSettings={() => {
+          setApiKeyMode('settings');
+          setShowApiKeyDialog(true);
+        }}
       />
 
       {/* Debug toggle — not needed here anymore, shown via DebugTraceModal */}
@@ -793,21 +811,18 @@ export default function Home() {
         <DebugTraceModal trace={pipelineTrace} onClose={() => setDebugMode(false)} />
       )}
 
-      {/* API Key 强制配置弹窗 */}
+      {/* API Key 配置弹窗 */}
       {showApiKeyDialog && (
-        <div className="fixed inset-0 z-[200] bg-black/40 flex items-center justify-center">
-          <div className="bg-white rounded-xl shadow-2xl border border-zinc-200 w-[400px] max-w-[90vw] p-6">
-            <h3 className="text-base font-semibold text-zinc-800 mb-2">配置 DeepSeek API Key</h3>
-            <p className="text-sm text-zinc-500 mb-4">首次使用需要配置 API Key，请前往 <span className="font-mono text-zinc-600">platform.deepseek.com</span> 获取。</p>
-            <SettingsDialog onClose={() => {
-              const key = getApiKey();
-              if (key && key.length > 10) {
-                setHasApiKey(true);
-                setShowApiKeyDialog(false);
-              }
-            }} />
-          </div>
-        </div>
+        <SettingsDialog
+          mode={apiKeyMode}
+          onClose={() => setShowApiKeyDialog(false)}
+          onSaved={() => {
+            if (apiKeyMode === 'execute' && pendingActionRef.current) {
+              pendingActionRef.current();
+              pendingActionRef.current = null;
+            }
+          }}
+        />
       )}
     </div>
   );
