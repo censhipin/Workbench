@@ -92,9 +92,15 @@ export default function BottomBar({
               onClick={onSubmit}
               disabled={!promptText.trim() || isRunning}
               className="flex items-center justify-center w-9 h-9 rounded-lg bg-[#4f6ef7] text-white hover:bg-[#3b5ce5] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
-              title="执行"
+              title="执行中..."
             >
+              {isRunning ? (
+                <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 12a9 9 0 11-6.219-8.56" />
+                </svg>
+              ) : (
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+              )}
             </button>
             <button
               onClick={onUndo}

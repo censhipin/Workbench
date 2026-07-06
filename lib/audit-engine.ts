@@ -86,22 +86,27 @@ function matchKeyword(label: string, keywords: string[]): boolean {
   return false;
 }
 
-// ---- 空值检测（行级详情） ----
+// ---- 空值检测（行级详情 + 覆盖所有列） ----
 export function auditNulls(rows: RowData[], columns: ColumnDef[]): NullFinding[] {
   const findings: NullFinding[] = [];
+  const checked = new Set<string>();
+
+  // Tier 1: 检查关键词匹配列（姓名、手机、邮箱等 PII 字段）
   const targets: ColumnDef[] = [];
   for (let ci = 0; ci < columns.length; ci++) {
     const l = columns[ci].title.toLowerCase();
     if (matchKeyword(l, NULL_TARGET_KEYWORDS)) {
       targets.push(columns[ci]);
+      checked.add(columns[ci].key);
     }
   }
-  // 如果没有任何列匹配关键词，将空值率最高的文本列作为目标
+
+  // Tier 2: 如果没有任何列匹配关键词 → 取空值率最高的文本列
   if (targets.length === 0) {
     var bestCol: ColumnDef | null = null;
     var bestRate = 0;
     for (let ci = 0; ci < columns.length; ci++) {
-      if (columns[ci].type !== 'number') {
+      if (columns[ci].type !== 'number' && !checked.has(columns[ci].key)) {
         var nulls = 0;
         for (let ri = 0; ri < Math.min(rows.length, 100); ri++) {
           var v = rows[ri][columns[ci].key];
@@ -111,8 +116,10 @@ export function auditNulls(rows: RowData[], columns: ColumnDef[]): NullFinding[]
         if (rate > bestRate) { bestRate = rate; bestCol = columns[ci]; }
       }
     }
-    if (bestCol) targets.push(bestCol);
+    if (bestCol) { targets.push(bestCol); checked.add(bestCol.key); }
   }
+
+  // Tier 1: 收集 tier1 列的空值
   for (let ti = 0; ti < targets.length; ti++) {
     const col = targets[ti];
     const records: NullRecord[] = [];
@@ -126,6 +133,34 @@ export function auditNulls(rows: RowData[], columns: ColumnDef[]): NullFinding[]
       findings.push({ fieldKey: col.key, fieldLabel: col.title, missingCount: records.length, records: records });
     }
   }
+
+  // Tier 3: 扫描所有未检查列（包括数值列），空值率超过阈值则报告
+  for (let ci = 0; ci < columns.length; ci++) {
+    const col = columns[ci];
+    if (checked.has(col.key)) continue;
+
+    let nullCount = 0;
+    for (let ri = 0; ri < rows.length; ri++) {
+      const v = rows[ri][col.key];
+      if (v === null || v === undefined || String(v).trim() === '') nullCount++;
+    }
+
+    if (nullCount > 0) {
+      const rate = rows.length > 0 ? nullCount / rows.length : 0;
+      const threshold = col.type === 'number' ? 0.05 : 0.1;
+      if (rate >= threshold) {
+        const records: NullRecord[] = [];
+        for (let ri = 0; ri < rows.length; ri++) {
+          const v = rows[ri][col.key];
+          if (v === null || v === undefined || String(v).trim() === '') {
+            records.push({ rowIndex: ri, fieldKey: col.key, fieldLabel: col.title });
+          }
+        }
+        findings.push({ fieldKey: col.key, fieldLabel: col.title, missingCount: records.length, records });
+      }
+    }
+  }
+
   return findings;
 }
 

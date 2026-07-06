@@ -40,7 +40,18 @@ export function ruleIntentToTaskPlan(intent: TaskIntent): TaskPlan {
 
   // ── pipeline：转换子步骤 ──
   if (intent.operation === 'pipeline' && intent.steps && intent.steps.length > 0) {
-    plan.steps = intent.steps.map(step => ruleIntentToTaskPlan(step));
+    plan.steps = intent.steps.map(step => {
+      const stepPlan = ruleIntentToTaskPlan(step);
+      // 对 sort 步骤确保 columnHint 从 intent.target 传递
+      if (step.operation === 'sort' && step.target && !stepPlan.columnHint) {
+        stepPlan.columnHint = step.target;
+      }
+      // 对 filter 步骤确保 conditions 的 columnHint
+      if (step.filters && step.filters.length > 0 && (!stepPlan.conditions || stepPlan.conditions.length === 0)) {
+        stepPlan.conditions = step.filters.map(f => mapFilterCondition(f));
+      }
+      return stepPlan;
+    });
     return plan;
   }
 
@@ -192,7 +203,7 @@ function mapAggregationToMethod(agg: string): TaskPlan['method'] {
 }
 
 /** 将 FilterCondition 转换为 TaskPlanCondition */
-function mapFilterCondition(f: { column: string; operator: string; value: string | { start: string; end: string } }): TaskPlanCondition {
+function mapFilterCondition(f: { column: string; operator: string; value: string | { start: string; end: string }; logic?: 'AND' | 'OR' }): TaskPlanCondition {
   const opMap: Record<string, string> = {
     'eq': '=',
     'neq': '!=',
@@ -207,6 +218,7 @@ function mapFilterCondition(f: { column: string; operator: string; value: string
   const base: TaskPlanCondition = {
     columnHint: f.column || '',
     operator: (opMap[f.operator] || '=') as TaskPlanCondition['operator'],
+    logic: f.logic || 'AND',
   };
 
   if (f.operator === 'dateRange' && typeof f.value === 'object') {

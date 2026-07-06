@@ -291,8 +291,24 @@ function buildErrorMessage(
   verification: VerificationReport | null,
 ): string {
   if (!intent || !intent.operation) return '无法识别操作类型';
-  if (!validation.valid) return validation.issues.map((i) => i.message).join('；');
-  if (execution && !execution.success) return execution.error || '执行失败';
+  if (!validation.valid) {
+    // 对"编译 ExecutionPlan 失败"类错误给出更友好的列名级提示
+    const messages = validation.issues.map((i) => {
+      if (i.message.includes('找不到列') || i.message.includes('不存在')) {
+        return i.message.replace(/找不到列/, '数据表中没有找到列').replace(/不存在/, '在数据表中不存在');
+      }
+      return i.message;
+    });
+    return messages.join('；');
+  }
+  if (execution && !execution.success) {
+    var errMsg = execution.error || '执行失败';
+    // 对列相关的 V2 错误做友好处理
+    if (errMsg.includes('找不到列') || errMsg.includes('不存在')) {
+      errMsg = errMsg.replace(/找不到列/, '数据表中没有找到列').replace(/'"/g, '');
+    }
+    return errMsg;
+  }
   if (verification && !verification.passed) return verification.checks.filter((c) => !c.passed).map((c) => c.detail).join('；');
   return '执行未完成';
 }

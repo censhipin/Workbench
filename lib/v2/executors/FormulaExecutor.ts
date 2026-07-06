@@ -40,6 +40,11 @@ export class FormulaExecutor implements OperationExecutor {
     var resultRows = inputRows.map(function (row, _idx) {
       var rawComputed = computeCell(plan, row, sourceColumns, expressionType, decimalPlaces, inputRows);
       var computedValue = rawComputed;
+      // 如果有小数位限制，统一应用四舍五入（对所有类型的结果）
+      if (decimalPlaces !== undefined && computedValue !== null && typeof computedValue === 'number') {
+        var factor = Math.pow(10, decimalPlaces);
+        computedValue = Math.round(computedValue * factor) / factor;
+      }
       // 如果有常量操作数，将常量参与运算
       if (constantOperand !== undefined && computedValue !== null && typeof computedValue === 'number') {
         switch (expressionType) {
@@ -48,6 +53,11 @@ export class FormulaExecutor implements OperationExecutor {
           case '*': computedValue = computedValue * constantOperand; break;
           case '/': computedValue = constantOperand !== 0 ? computedValue / constantOperand : 0; break;
         }
+      }
+      // 常量运算后再应用小数位限制
+      if (decimalPlaces !== undefined && computedValue !== null && typeof computedValue === 'number') {
+        var factor = Math.pow(10, decimalPlaces);
+        computedValue = Math.round(computedValue * factor) / factor;
       }
       return { ...row, [targetColumn]: computedValue };
     });

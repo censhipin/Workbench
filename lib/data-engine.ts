@@ -61,16 +61,22 @@ export function aggMethodLabel(method: string): string {
 }
 
 /** Execute aggregation on a set of values */
-function aggregate(values: number[], method: string): number | null {
+function aggregate(values: number[], method: string, decimalPlaces?: number): number | null {
   if (values.length === 0) return null;
+  let result: number;
   switch (method) {
-    case 'SUM': return values.reduce((s, v) => s + v, 0);
-    case 'AVG': return Math.round((values.reduce((s, v) => s + v, 0) / values.length) * 100) / 100;
-    case 'COUNT': return values.length;
-    case 'MAX': return Math.max(...values);
-    case 'MIN': return Math.min(...values);
-    default: return values.reduce((s, v) => s + v, 0);
+    case 'SUM': result = values.reduce((s, v) => s + v, 0); break;
+    case 'AVG': result = values.reduce((s, v) => s + v, 0) / values.length; break;
+    case 'COUNT': result = values.length; break;
+    case 'MAX': result = Math.max(...values); break;
+    case 'MIN': result = Math.min(...values); break;
+    default: result = values.reduce((s, v) => s + v, 0);
   }
+  if (decimalPlaces !== undefined && Number.isFinite(result)) {
+    const factor = Math.pow(10, decimalPlaces);
+    return Math.round(result * factor) / factor;
+  }
+  return Number.isFinite(result) ? Math.round(result * 100) / 100 : result;
 }
 
 /**
@@ -421,18 +427,25 @@ export function mergeTables(
 }
 
 // ---- 鏁版嵁娓呮礂 ----
-export function cleanData(rows: RowData[], columns: ColumnDef[]): {
+export function cleanData(rows: RowData[], columns: ColumnDef[], targetColumns?: string[]): {
   result: RowData[]; removedEmptyRows: number; removedInvalidCells: number
 } {
   let removedEmptyRows = 0, removedInvalidCells = 0; const result: RowData[] = [];
+
+  const colsToCheck = targetColumns
+    ? columns.filter(c => targetColumns.includes(c.key))
+    : undefined;
+
   for (const row of rows) {
-    const newRow: RowData = {}; let hasAny = false;
+    const newRow: RowData = {}; let hasAny = false; let hasTargetValue = !targetColumns;
     for (const col of columns) {
       const v = row[col.key];
+      const isTargetCol = targetColumns ? (colsToCheck || []).includes(col) : false;
       if (v == null || String(v).trim() === '') { newRow[col.key] = null; }
       else if (col.type === 'number' && isNaN(Number(v))) { newRow[col.key] = null; removedInvalidCells++; }
-      else { newRow[col.key] = v; hasAny = true; }
+      else { newRow[col.key] = v; hasAny = true; if (isTargetCol) hasTargetValue = true; }
     }
+    if (targetColumns && !hasTargetValue) { removedEmptyRows++; continue; }
     if (hasAny) result.push(newRow); else removedEmptyRows++;
   }
   return { result, removedEmptyRows, removedInvalidCells };

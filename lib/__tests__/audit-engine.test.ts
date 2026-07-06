@@ -71,8 +71,8 @@ describe('auditNulls', () => {
       { 姓名: null, 手机号: null, 备注: '有备注' },
     ];
     const findings = auditNulls(rows, columns);
-    // 姓名和手机号都被检测，备注不检测
-    expect(findings.length).toBe(2);
+    // 姓名、手机号、备注都被检测（备注 50% 空值率 > 10% 阈值）
+    expect(findings.length).toBe(3);
   });
 });
 

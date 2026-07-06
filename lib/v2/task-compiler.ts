@@ -216,8 +216,18 @@ function compileMatch(plan: TaskPlan, ctx: ColumnContext): CompileResult {
   return { success: true, plan: result };
 }
 
-function compileMerge(_plan: TaskPlan, _ctx: ColumnContext): CompileResult {
-  const result: MergePlan = { type: 'merge', sourceTables: [], output: compileOutput(_plan) };
+function compileMerge(plan: TaskPlan, _ctx: ColumnContext): CompileResult {
+  const sourceTables: string[] = [];
+
+  // 从 plan 中解析源表名
+  if (plan.lookupTableHint) {
+    sourceTables.push(plan.lookupTableHint);
+  }
+  if (plan.table && plan.table !== 'current' && !sourceTables.includes(plan.table)) {
+    sourceTables.push(plan.table);
+  }
+
+  const result: MergePlan = { type: 'merge', sourceTables, output: compileOutput(plan) };
   return { success: true, plan: result };
 }
 
@@ -474,6 +484,10 @@ function compilePipeline(plan: TaskPlan, ctx: ColumnContext): CompileResult {
     var r = compile(step, evolvingColumns, ctx.rows);
     if (!r.success || !r.plan) {
       return { success: false, error: 'pipeline 子步骤编译失败: ' + (r.error || '未知错误') };
+    }
+    // 子步骤的 output/limit 约束传递到编译后的 plan
+    if (step.output || step.limit) {
+      (r.plan as any).output = compileOutput(step);
     }
     compiledSteps.push(r.plan);
     // 公式新增列需对后续步骤可见

@@ -250,6 +250,10 @@ export class RuleBasedSemanticParser implements SemanticTaskParser {
           return { operation: 'select', confidence: 0.85 };
         }
       }
+      // fallback: 只要 prompt 含"只看/只保留/只显示"且不含比较运算符，保守认为 select
+      if (!/[><=大于小于等于]/.test(prompt)) {
+        return { operation: 'select', confidence: 0.75 };
+      }
     }
     return { operation: null, confidence: 0 };
   }
@@ -279,6 +283,24 @@ export class RuleBasedSemanticParser implements SemanticTaskParser {
 
     // Step 2: 推断表达式
     const expression = this.inferFormulaExpression(prompt, lower, availableColumns, targetColumn);
+
+    // Step 2b: 检测复合公式（多个不同运算符），拆解为 pipeline
+    const compoundSteps = this.detectCompoundFormula(prompt, lower, availableColumns, targetColumn);
+    if (compoundSteps && compoundSteps.length >= 2) {
+      console.log('===== LAYER 1: Rule Parser — Compound Formula (pipeline decomposed) =====');
+      return {
+        operation: 'pipeline' as Operation,
+        target: targetColumn,
+        targetColumns: [],
+        resolvedColumns: undefined,
+        scope: 'all',
+        params: {},
+        steps: compoundSteps,
+        targetFiles: fileNames,
+        rawPrompt: prompt,
+        confidence: 0.85,
+      };
+    }
     console.log('===== LAYER 1: Rule Parser =====');
     console.log('TaskIntent:');
     console.log('  operation:', 'formula');
@@ -432,6 +454,99 @@ export class RuleBasedSemanticParser implements SemanticTaskParser {
     return null;
   }
 
+  /**
+   * 检测复合公式表达式（多个不同运算符），拆解为多步 pipeline
+   * 例如 "收入 = 基本工资 * 绩效奖金 + 基本工资"
+   * → 第一步：_temp_收入 = 基本工资 * 绩效奖金
+   * → 第二步：收入 = _temp_收入 + 基本工资
+   */
+  private detectCompoundFormula(
+    prompt: string,
+    lower: string,
+    availableColumns: ColumnDef[],
+    targetColumn: string
+  ): TaskIntent[] | null {
+    const eqMatch = prompt.match(/[=＝]\s*(.+)/);
+    if (!eqMatch) return null;
+    const rhs = eqMatch[1].trim();
+
+    const colTitles = availableColumns.map(c => c.title).filter(Boolean);
+
+    // 检测 RHS 中出现的所有运算符
+    const opCandidates: { op: string; regex: RegExp }[] = [
+      { op: '+', regex: /[+＋加]/ },
+      { op: '-', regex: /[\-－减]/ },
+      { op: '*', regex: /[*×乘]/ },
+      { op: '/', regex: /[\/÷除]/ },
+    ];
+
+    const foundOps = opCandidates.filter(({ regex }) => regex.test(rhs)).map(({ op }) => op);
+    // 只有 1 个或没有运算符 — 不是复合公式
+    if (foundOps.length <= 1) return null;
+
+    // RHS 中的列
+    const rhsCols = colTitles.filter(t => rhs.includes(t));
+
+    // 按运算符出现的顺序分段
+    // 例如 "基本工资 * 绩效奖金 + 基本工资"
+    // 第一段: "基本工资 * 绩效奖金"，第二段: "+ 基本工资"
+    const steps: TaskIntent[] = [];
+    const tempCol = '_temp_' + targetColumn;
+
+    // 第一步：第一个运算 → 临时列
+    const firstOp = foundOps[0];
+    const firstParts = this.splitByOp(rhs, firstOp);
+    if (firstParts.length < 2) return null;
+
+    const firstCols = rhsCols.filter(c => firstParts[0].includes(c) || (firstParts[1] && firstParts[1].includes(c)));
+    if (firstCols.length === 0) return null;
+
+    steps.push({
+      operation: 'formula' as Operation,
+      target: tempCol,
+      targetColumns: [],
+      scope: 'all',
+      params: {
+        targetColumn: tempCol,
+        expressionType: firstOp,
+        sourceColumnHints: firstCols,
+        expression: firstCols.join(' ' + firstOp + ' '),
+      },
+      targetFiles: [],
+      rawPrompt: '',
+      confidence: 0.9,
+    });
+
+    // 第二步：临时列 ∘ 剩余列 → 目标列
+    const secondOp = foundOps[1];
+    const remainingCols = [tempCol, ...rhsCols.filter(c => !firstCols.includes(c))];
+    steps.push({
+      operation: 'formula' as Operation,
+      target: targetColumn,
+      targetColumns: [],
+      scope: 'all',
+      params: {
+        targetColumn: targetColumn,
+        expressionType: secondOp,
+        sourceColumnHints: remainingCols,
+        expression: remainingCols.join(' ' + secondOp + ' '),
+      },
+      targetFiles: [],
+      rawPrompt: '',
+      confidence: 0.85,
+    });
+
+    return steps;
+  }
+
+  /** 按运算符分割表达式 */
+  private splitByOp(expr: string, op: string): string[] {
+    if (op === '+') return expr.split(/[+＋加]/).filter(Boolean);
+    if (op === '-') return expr.split(/[\-－减]/).filter(Boolean);
+    if (op === '*') return expr.split(/[*×乘]/).filter(Boolean);
+    if (op === '/') return expr.split(/[\/÷除]/).filter(Boolean);
+    return [expr];
+  }
 
 
   /** 提取小数位数 */
@@ -1561,10 +1676,13 @@ export class RuleBasedSemanticParser implements SemanticTaskParser {
     // 如果有多个候选，优先精确匹配列名，否则取位置最靠前的
     if (meaningfulKeywords.length > 0) {
       if (availableColumns && availableColumns.length > 0) {
-        var colTitleSet = new Set(availableColumns.map(function (c) { return c.title; }));
+        const colTitleSet = new Set(availableColumns.map(function (c) { return c.title; }));
         for (var _mk = 0; _mk < meaningfulKeywords.length; _mk++) {
-          if (colTitleSet.has(meaningfulKeywords[_mk])) {
-            return meaningfulKeywords[_mk];
+          var kw = meaningfulKeywords[_mk];
+          // 跳过"每个X""各X"模式（那是 groupBy，不是 target）
+          if (prompt.includes('每个' + kw) || prompt.includes('各' + kw)) continue;
+          if (colTitleSet.has(kw)) {
+            return kw;
           }
         }
       }
@@ -1670,25 +1788,67 @@ export class RuleBasedSemanticParser implements SemanticTaskParser {
   }
 
   /**
-   * 提取分组条件
-   * 例如："按部门统计工资" → groupBy: ['部门']
+   * 提取分组条件 — 语义推断，不依赖固定模板
+   *
+   * 核心逻辑：
+   * 1. 检测 prompt 中是否有"分组/分布/分别/各/每/按"等群体性语义
+   * 2. 如果有 → 是分组聚合，从 prompt 中提取对应的 groupBy 列
+   * 3. 如果没有 → 全局聚合
+   *
+   * 列名匹配靠 availableColumns，不硬编码任何业务词
    */
   private extractGroupBy(prompt: string, _lower: string, columns: ColumnDef[]): string[] | undefined {
-    // 匹配 "按XXX" 模式
-    const match = prompt.match(/按(.+?)(?:统计|汇总|求和|排序|分组)/);
-    if (match) {
-      const groupTarget = match[1].trim();
-      if (groupTarget) return [groupTarget];
+    // ── 分组语义指示词（按优先级） ──
+    const groupIndicators = [
+      // 强指示词：明确的分组语义（排除"排序"——它是排序列，不是分组）
+      { pattern: /按(.+?)(?:统计|汇总|求和|分组|算|计算|分析|查看|展示|列出)/, extract: true },
+      { pattern: /按(.+?)(?:来|进行)/, extract: true },
+      // "各/每" 系列
+      { pattern: /每(?:个|一)?(.+?)(?:的|$)/, extract: true },
+      { pattern: /各(?:个|类|种)?(.+?)(?:的|$)/, extract: true },
+      // "分别" 系列
+      { pattern: /分别/, extract: false }, // 仅标记分组意图，不直接提取列名
+      // "分X" 系列
+      { pattern: /分(?:组|类|部门|地区|城市|产品)/, extract: false },
+    ];
+
+    let isGrouped = false;
+    let groupHint = '';
+
+    for (const indicator of groupIndicators) {
+      const m = prompt.match(indicator.pattern);
+      if (m) {
+        isGrouped = true;
+        if (indicator.extract && m[1]) {
+          groupHint = m[1].trim();
+          break;
+        }
+      }
     }
 
-    // "每个" 模式
-    const eachMatch = prompt.match(/每个(.+?)(?:的|$)/);
-    if (eachMatch) {
-      const groupTarget = eachMatch[1].trim();
-      if (groupTarget) return [groupTarget];
+    if (!isGrouped) return undefined;
+
+    // 有明确的分组列 hint → 匹配可用列名
+    if (groupHint && columns.length > 0) {
+      const exactMatch = columns.find(c => c.title === groupHint || c.key === groupHint);
+      if (exactMatch) return [exactMatch.title];
+
+      // 模糊匹配
+      const fuzzyMatch = columns.find(c =>
+        c.title.includes(groupHint) || groupHint.includes(c.title) ||
+        c.title.toLowerCase() === groupHint.toLowerCase()
+      );
+      if (fuzzyMatch) return [fuzzyMatch.title];
     }
 
-    return undefined;
+    // 有分组意图但没提具体列名 → 取第一个文本列作为分组列（合理兜底）
+    // 例如"分别统计总和" → 用第一个文本列分组
+    if (!groupHint && columns.length > 0) {
+      const firstTextCol = columns.find(c => c.type !== 'number');
+      if (firstTextCol) return [firstTextCol.title];
+    }
+
+    return groupHint ? [groupHint] : undefined;
   }
 
   /**
@@ -1736,13 +1896,16 @@ export class RuleBasedSemanticParser implements SemanticTaskParser {
         { regex: /大于等于\s*([零一二三四五六七八九十百千万亿\d.]+)/, op: 'gte' },
         { regex: /≥\s*(\d+)/, op: 'gte' },
         { regex: />=\s*(\d+)/, op: 'gte' },
-        { regex: /大于\s*([零一二三四五六七八九十百千万亿\d.]+)/, op: 'gte' },
-        { regex: />\s*(\d+)/, op: 'gte' },
+        { regex: /大于\s*([零一二三四五六七八九十百千万亿\d.]+)/, op: 'gt' },
+        { regex: /高于\s*([零一二三四五六七八九十百千万亿\d.]+)/, op: 'gt' },
+        { regex: /超过\s*([零一二三四五六七八九十百千万亿\d.]+)/, op: 'gt' },
+        { regex: />\s*(\d+)/, op: 'gt' },
         { regex: /小于等于\s*([零一二三四五六七八九十百千万亿\d.]+)/, op: 'lte' },
         { regex: /≤\s*(\d+)/, op: 'lte' },
         { regex: /<=\s*(\d+)/, op: 'lte' },
-        { regex: /小于\s*([零一二三四五六七八九十百千万亿\d.]+)/, op: 'lte' },
-        { regex: /<\s*(\d+)/, op: 'lte' },
+        { regex: /小于\s*([零一二三四五六七八九十百千万亿\d.]+)/, op: 'lt' },
+        { regex: /低于\s*([零一二三四五六七八九十百千万亿\d.]+)/, op: 'lt' },
+        { regex: /<\s*(\d+)/, op: 'lt' },
         { regex: /等于\s*(.+?)(?:的|$)/, op: 'eq' },
         { regex: /包含\s*(.+?)(?:的|$)/, op: 'contains' },
         { regex: /叫\s*(.+?)(?:$|的|，|,)/, op: 'eq' },

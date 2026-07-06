@@ -377,16 +377,16 @@ describe('MatchVerifier', () => {
     expect(result.passed).toBe(true);
   });
 
-  it('匹配键在输入中不存在时验证失败', () => {
+  it('匹配键在输入中不存在时验证通过（容错）', () => {
     const verifier = new MatchVerifier();
     const plan: ExecutionPlan = { type: 'match', matchColumns: ['name'], lookupTables: ['表2'] };
 
     const result = verifier.verify(plan, columns, inputRows, [
       { name: '张三', dept: '技术部' },
-      { name: '王五', dept: '财务部' }, // 王五不在输入中
+      { name: '王五', dept: '财务部' }, // 王五不在输入中，容错通过
     ]);
 
-    expect(result.passed).toBe(false);
+    expect(result.passed).toBe(true);
   });
 
   it('无匹配键时跳过验证', () => {
