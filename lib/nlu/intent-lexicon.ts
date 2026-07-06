@@ -125,7 +125,7 @@ const DEFAULT_ENTRIES: LexiconEntry[] = [
   {
     operation: 'formula',
     synonyms: [
-      '计算出', '算出来', '计算',
+      '计算出', '算出来',
       '新增列', '添加列', '增加列', '新列',
       '乘以', '除以', '加上', '减去',
       '加起来',

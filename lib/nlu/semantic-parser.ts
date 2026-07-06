@@ -136,6 +136,10 @@ export class RuleBasedSemanticParser implements SemanticTaskParser {
     lower: string,
     availableColumns: ColumnDef[]
   ): OperationDetection {
+    // ── aggregate 检测——优先于 formula，当出现聚合词时 ──
+    const aggregateResult = this.detectAggregate(lower);
+    if (aggregateResult.operation) return aggregateResult;
+
     // ── formula 检测 ──
     const formulaResult = this.detectFormula(prompt, lower);
     if (formulaResult.operation) return formulaResult;
@@ -161,17 +165,39 @@ export class RuleBasedSemanticParser implements SemanticTaskParser {
       return { operation: identified.operation, confidence: identified.confidence };
     }
 
-    // ── 隐式 filter 检测：包含比较运算符或值匹配 ──
-    // 即使没有显式"筛选"关键词，如果包含 > < >= <= != = 等比较符
-    // 或包含列值特征 → 视为 filter
+    // ── 隐式 filter 检测 ──
     if (/[><=]/.test(prompt) || /大于|小于|高于|低于|等于/.test(lower)) {
       return { operation: 'filter', confidence: 0.6 };
     }
-    // 纯词且是已知列的值 → 视为 filter
     if (availableColumns.length > 0 && lower.length >= 2 && lower.length <= 8) {
       return { operation: 'filter', confidence: 0.5 };
     }
 
+    return { operation: null, confidence: 0 };
+  }
+
+  /** 检测聚合操作（优先于公式）*/
+  private detectAggregate(lower: string): OperationDetection {
+    // 聚合语义关键词
+    const hasAvg = /平均|均值|avg/i.test(lower);
+    const hasSum = /总和|合计|总额|总数|汇总|总计|求和/i.test(lower);
+    const hasCount = /计数|个数|多少条|多少人|人数|总人数|数量|频次|次数/i.test(lower);
+    const hasMax = /最大|最高|最多/i.test(lower);
+    const hasMin = /最小|最低|最少/i.test(lower);
+    const hasGrouping = /按.*(?:统计|汇总|算|计算|分组|分析)|各|每|分别|分部门|分类|分组/i.test(lower);
+
+    // 聚合关键词 + 有分组/统计语境 → 聚合操作
+    if ((hasAvg || hasSum || hasCount || hasMax || hasMin) && hasGrouping) {
+      return { operation: 'sum', confidence: 0.85 };
+    }
+    // 纯"平均/均值" → 也是聚合
+    if (hasAvg) {
+      return { operation: 'sum', confidence: 0.8 };
+    }
+    // "统计+目标"（如"统计工资"）→ 聚合求和
+    if (/统计/.test(lower) && !/筛选|过滤|查询/.test(lower)) {
+      return { operation: 'sum', confidence: 0.75 };
+    }
     return { operation: null, confidence: 0 };
   }
 
@@ -1635,6 +1661,7 @@ export class RuleBasedSemanticParser implements SemanticTaskParser {
       '算一下', '算个总数', '全部加起来', '加起来', '一共多少',
       '总共有多少', '一共', '总数', '总额', '总共',
       '计算', '计算出', '算', '算算',
+      '平均', '均值', '平均数', 'avg',
       '排序', '排一下', '排个序', '排列', '排一排',
       '从大到小', '从小到大', '升序', '降序', '按顺序', '整理',
       '筛选', '筛选出', '过滤', '过滤出', '只保留', '只显示',
@@ -1676,13 +1703,10 @@ export class RuleBasedSemanticParser implements SemanticTaskParser {
     // 如果有多个候选，优先精确匹配列名，否则取位置最靠前的
     if (meaningfulKeywords.length > 0) {
       if (availableColumns && availableColumns.length > 0) {
-        const colTitleSet = new Set(availableColumns.map(function (c) { return c.title; }));
+        var colTitleSet = new Set(availableColumns.map(function (c) { return c.title; }));
         for (var _mk = 0; _mk < meaningfulKeywords.length; _mk++) {
-          var kw = meaningfulKeywords[_mk];
-          // 跳过"每个X""各X"模式（那是 groupBy，不是 target）
-          if (prompt.includes('每个' + kw) || prompt.includes('各' + kw)) continue;
-          if (colTitleSet.has(kw)) {
-            return kw;
+          if (colTitleSet.has(meaningfulKeywords[_mk])) {
+            return meaningfulKeywords[_mk];
           }
         }
       }
@@ -1771,7 +1795,7 @@ export class RuleBasedSemanticParser implements SemanticTaskParser {
    */
   private extractAggregation(lower: string): AggregationType {
     if (lower.includes('平均') || lower.includes('均值') || lower.includes('平均数') || lower.includes('avg')) return 'AVG';
-    if (lower.includes('计数') || lower.includes('个数') || lower.includes('多少个') || lower.includes('count')) return 'COUNT';
+    if (lower.includes('计数') || lower.includes('个数') || lower.includes('多少个') || lower.includes('人数') || lower.includes('总人数') || lower.includes('count')) return 'COUNT';
     if (lower.includes('最大') || lower.includes('最高') || lower.includes('最多') || lower.includes('max')) return 'MAX';
     if (lower.includes('最小') || lower.includes('最低') || lower.includes('最少') || lower.includes('min')) return 'MIN';
     if (lower.includes('求和') || lower.includes('统计') || lower.includes('总计') || lower.includes('合计') || lower.includes('汇总') || lower.includes('总额') || lower.includes('总数')) return 'SUM';
