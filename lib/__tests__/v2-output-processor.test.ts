@@ -86,7 +86,7 @@ describe('DefaultOutputProcessor', () => {
   });
 
   describe('renameColumns', () => {
-    it('列 title 和数据行 key 同时修改', () => {
+    it('只改 title 不改数据 key', () => {
       const cols = cloneCols([...BASE_COLUMNS, { key: 'phone', title: 'phone', type: 'text' }]);
       const rows = cloneRows(BASE_ROWS).map(r => ({ ...r, phone: '13800000000' }));
 
@@ -98,9 +98,9 @@ describe('DefaultOutputProcessor', () => {
       const phoneCol = result.columns.find(c => c.title === '联系电话');
       expect(phoneCol).toBeDefined();
 
-      // key 和数据迁移
-      expect(result.rows[0]['联系电话']).toBe('13800000000');
-      expect(result.rows[0].phone).toBeUndefined();
+      // key 不变，数据仍在原 key 下
+      expect(result.rows[0].phone).toBe('13800000000');
+      expect(phoneCol!.key).toBe('phone');
     });
 
     it('仅重命名 title 时 key 不变', () => {
@@ -108,12 +108,12 @@ describe('DefaultOutputProcessor', () => {
         renameColumns: { name: '员工姓名' },
       });
 
-      // 列 key 不变，只是找了匹配的名称作为 key，所以 key 被改为新值
-      // 注意：renameColumns 的行为是将找匹配列的 key 改为新名称
-      // 这里 name 匹配了 `c.key === 'name'`，然后 key 变为 '员工姓名'
+      // 列 key 不变，只改 title
+      // renameColumns 行为改为只改 title，不改 key
       const nameCol = result.columns.find(c => c.title === '员工姓名');
       expect(nameCol).toBeDefined();
       expect(nameCol!.title).toBe('员工姓名');
+      expect(nameCol!.key).toBeDefined();
     });
   });
 

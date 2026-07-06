@@ -9,6 +9,8 @@ export interface TaskPlanCondition {
   columnHint: string;
   operator: '=' | '!=' | '>' | '>=' | '<' | '<=' | 'contains' | 'isNull' | 'notNull' | 'dateRange';
   value?: string | { start: string; end: string };
+  /** 逻辑连接词 OR（缺省 AND） */
+  logic?: 'AND' | 'OR';
 }
 
 /** 聚合操作 */

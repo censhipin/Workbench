@@ -261,12 +261,27 @@ function validatePipelinePlan(plan: PipelinePlan, columns: ColumnDef[], issues: 
   }
 
   const normalizedSteps: ExecutionPlan[] = [];
+  const evolvingColumns = [...columns];
   for (let i = 0; i < plan.steps.length; i++) {
-    const stepResult = validatePlan(plan.steps[i], columns);
+    const stepResult = validatePlan(plan.steps[i], evolvingColumns);
     for (const iss of stepResult.issues) {
       issues.push({ field: `steps[${i}].${iss.field}`, message: iss.message, severity: iss.severity });
     }
     normalizedSteps.push(stepResult.plan);
+    // 追踪列变更：formula 新增列，rename 改 title
+    const rawStep = plan.steps[i];
+    if (rawStep.type === 'formula' && 'targetColumn' in rawStep && rawStep.targetColumn) {
+      const existing = evolvingColumns.find(c => c.key === rawStep.targetColumn || c.title === rawStep.targetColumn);
+      if (!existing) {
+        evolvingColumns.push({ key: rawStep.targetColumn, title: rawStep.targetColumn, type: 'number' });
+      }
+    }
+    if (rawStep.type === 'projection' && 'renameColumns' in rawStep && rawStep.renameColumns) {
+      for (const [oldKey, newTitle] of Object.entries(rawStep.renameColumns)) {
+        const col = evolvingColumns.find(c => c.key === oldKey || c.title === oldKey);
+        if (col) col.title = newTitle as string;
+      }
+    }
   }
 
   return {

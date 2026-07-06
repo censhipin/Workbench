@@ -81,23 +81,12 @@ export class DefaultOutputProcessor implements OutputProcessor {
       }
     }
 
-    // 3. renameColumns — 重命名列（同时修改 columns.title 和 rows key）
+    // 3. renameColumns — 重命名列（只改 title，不改 key，避免下游匹配断裂）
     if (output.renameColumns) {
       for (const [oldName, newName] of Object.entries(output.renameColumns)) {
         const col = resultCols.find(c => c.title === oldName || c.key === oldName);
         if (col) {
           col.title = newName;
-          const oldKey = col.key;
-          const newKey = newName;
-          if (oldKey !== newKey) {
-            col.key = newKey;
-            for (const row of resultRows) {
-              if (oldKey in row) {
-                row[newKey] = row[oldKey];
-                delete row[oldKey];
-              }
-            }
-          }
         }
       }
     }

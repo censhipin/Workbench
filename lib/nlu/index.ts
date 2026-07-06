@@ -233,12 +233,20 @@ function buildV2PlanFromIntent(
   columns: ColumnDef[],
   rows?: Record<string, string | number | null>[],
 ): import('@/lib/v2/execution-plan').ExecutionPlan | undefined {
-  // pipeline 操作：递归编译各步骤
+  // pipeline 操作：递归编译各步骤，追踪列变更
   if (intent.operation === 'pipeline' && intent.steps && intent.steps.length > 0) {
     const compiledSteps: import('@/lib/v2/execution-plan').ExecutionPlan[] = [];
+    const evolvingColumns = [...columns];
     for (const step of intent.steps) {
-      const stepPlan = buildV2PlanFromIntent(step, columns, rows);
+      const stepPlan = buildV2PlanFromIntent(step, evolvingColumns, rows);
       if (stepPlan) compiledSteps.push(stepPlan);
+      // 追踪列变更
+      if (step.operation === 'formula' && step.target) {
+        const existing = evolvingColumns.find(c => c.key === step.target || c.title === step.target);
+        if (!existing) {
+          evolvingColumns.push({ key: step.target, title: step.target, type: 'number' });
+        }
+      }
     }
     if (compiledSteps.length >= 2) {
       return { type: 'pipeline', steps: compiledSteps };

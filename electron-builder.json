@@ -5,18 +5,10 @@
   "directories": {
     "output": "release"
   },
+  "asar": false,
   "files": [
-    "electron-out/**/*.js",
-    ".next/standalone/**/*",
-    ".next/static/**/*",
-    "public/**/*"
-  ],
-  "extraResources": [
-    {
-      "from": ".next/standalone",
-      "to": ".",
-      "filter": ["**/*"]
-    }
+    "electron-out/**/*",
+    ".next/standalone/**/*"
   ],
   "extraMetadata": {
     "main": "electron-out/main.js"
@@ -33,8 +25,5 @@
     "oneClick": false,
     "allowToChangeInstallationDirectory": true,
     "createDesktopShortcut": true
-  },
-  "asarUnpack": [
-    "node_modules/next/**"
-  ]
+  }
 }

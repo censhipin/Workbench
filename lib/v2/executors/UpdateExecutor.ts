@@ -42,7 +42,13 @@ export class UpdateExecutor implements OperationExecutor {
         }
       }
       modifiedCount++;
-      return { ...row, [column]: value };
+      // 数值列强制转数值，避免字符串拼接
+      var finalValue = value;
+      if (targetCol.type === 'number' && typeof finalValue !== 'number') {
+        var nv = Number(finalValue);
+        if (!isNaN(nv)) finalValue = nv;
+      }
+      return { ...row, [column]: finalValue };
     });
 
     return {

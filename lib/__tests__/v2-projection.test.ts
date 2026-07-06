@@ -75,12 +75,12 @@ describe('ProjectionExecutor', () => {
     expect(result.data!.rows[0].name).toBe('张三');
   });
 
-  it('重命名字段', () => {
+  it('重命名字段（只改 title 不改数据 key）', () => {
     const plan: ExecutionPlan = { type: 'projection', renameColumns: { phone: '联系电话' } };
     const result = runExecutionPlan(plan, mainSheet);
     expect(result.success).toBe(true);
-    expect(result.data!.rows[0]['联系电话']).toBe('13800138000');
-    expect(result.data!.rows[0].phone).toBeUndefined();
+    expect(result.data!.columns.find(c => c.title === '联系电话')).toBeDefined();
+    expect(result.data!.rows[0].phone).toBe('13800138000');
   });
 
   it('调整字段顺序', () => {

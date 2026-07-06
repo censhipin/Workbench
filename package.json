@@ -37,6 +37,7 @@
     "wait-on": "^8.0.0"
   },
   "optionalDependencies": {
-    "@next/swc-linux-x64-gnu": "^16.2.9"
+    "@next/swc-linux-x64-gnu": "^16.2.9",
+    "@next/swc-win32-x64-msvc": "^16.2.9"
   }
 }

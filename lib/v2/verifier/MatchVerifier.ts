@@ -34,9 +34,11 @@ export class MatchVerifier implements Verifier {
     }
 
     // 检查输出行中每条的复合键是否在输入中存在
+    // ★ 只检查前 inputRows.length 行（主表行），不检查追加的副表未匹配行
     let missingCount = 0;
     let firstMissingKey = '';
-    for (const row of outputRows) {
+    const rowsToCheck = outputRows.slice(0, inputRows.length);
+    for (const row of rowsToCheck) {
       const key = plan.matchColumns.map(c => String(row[c] ?? '')).join('|');
       if (key && !validKeys.has(key)) {
         missingCount++;

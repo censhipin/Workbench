@@ -115,9 +115,9 @@ function compileFilter(plan: TaskPlan, ctx: ColumnContext): CompileResult {
 
     if (operator === Operator.BETWEEN && typeof c.value === 'object' && c.value !== null) {
       // dateRange 格式：{ start, end }
-      conditions.push({ columnKey, operator, value: c.value });
+      conditions.push({ columnKey, operator, value: c.value, logic: c.logic });
     } else {
-      conditions.push({ columnKey, operator, value: c.value ?? '' });
+      conditions.push({ columnKey, operator, value: c.value ?? '', logic: c.logic });
     }
   }
 
@@ -347,6 +347,10 @@ function mapOperator(op: string): Operator | null {
     isNull: Operator.IS_NULL,
     notNull: Operator.NOT_NULL,
     dateRange: Operator.BETWEEN,
+    in: Operator.IN,
+    notIn: Operator.NOT_IN,
+    startsWith: Operator.STARTS_WITH,
+    endsWith: Operator.ENDS_WITH,
   };
   return map[op] ?? null;
 }
@@ -464,13 +468,26 @@ function compilePipeline(plan: TaskPlan, ctx: ColumnContext): CompileResult {
   }
 
   var compiledSteps: ExecutionPlan[] = [];
+  var evolvingColumns = [...ctx.columns];
   for (var _g = 0, _h = plan.steps; _g < _h.length; _g++) {
     var step = _h[_g];
-    var r = compile(step, ctx.columns, ctx.rows);
+    var r = compile(step, evolvingColumns, ctx.rows);
     if (!r.success || !r.plan) {
       return { success: false, error: 'pipeline 子步骤编译失败: ' + (r.error || '未知错误') };
     }
     compiledSteps.push(r.plan);
+    // 公式新增列需对后续步骤可见
+    if (step.action === 'formula' && step.targetColumn) {
+      var existing = evolvingColumns.find(function (c) { return c.key === step.targetColumn || c.title === step.targetColumn; });
+      if (!existing) {
+        evolvingColumns.push({ key: step.targetColumn, title: step.targetColumn, type: 'number' });
+      }
+    }
+    // projection 对列重新命名的步骤后续可用新列名
+    if (step.action === 'rename' && step.column && step.newName) {
+      var renamedCol = evolvingColumns.find(function (c) { return c.key === step.column || c.title === step.column; });
+      if (renamedCol) renamedCol.title = step.newName;
+    }
   }
 
   return {

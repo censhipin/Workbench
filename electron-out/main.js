@@ -44,8 +44,8 @@ const PORT = Number(process.env.PORT) || 3000;
 /** 生产环境：用 Electron 内置的 Node.js 启动 standalone server */
 function startProdServer() {
     return new Promise((resolve, reject) => {
-        // server.js 在 extraResources 中，位于 resourcesPath 根目录
-        const serverDir = process.resourcesPath;
+        // asar:false 模式：所有文件物理展开在 resources/app/ 下
+        const serverDir = path.join(process.resourcesPath, 'app', '.next', 'standalone');
         const serverPath = path.join(serverDir, 'server.js');
         // 使用 Electron 内置的 Node.js 可执行文件（ELECTRON_RUN_AS_NODE=1 使它作为普通 Node.js 运行）
         serverProcess = (0, child_process_1.spawn)(process.execPath, [serverPath], {

@@ -89,6 +89,13 @@ export default function Home() {
   const [debugMode, setDebugMode] = useState(false);
   const [pipelineTrace, setPipelineTrace] = useState<PipelineTrace | null>(null);
 
+  // ── 错误弹窗 ────────────────────────────────────────────
+  const [errorDialog, setErrorDialog] = useState<string | null>(null);
+  useEffect(() => {
+    if (error) setErrorDialog(error);
+  }, [error]);
+  const dismissError = useCallback(() => setErrorDialog(null), []);
+
   // ── API Key 配置状态 ─────────────────────────────────────
   const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
   const [apiKeyMode, setApiKeyMode] = useState<'settings' | 'execute' | 'audit'>('settings');
@@ -809,6 +816,29 @@ export default function Home() {
       {/* Debug mode: Pipeline Trace modal */}
       {debugMode && pipelineTrace && (
         <DebugTraceModal trace={pipelineTrace} onClose={() => setDebugMode(false)} />
+      )}
+
+      {/* 错误弹窗 */}
+      {errorDialog && (
+        <div className="fixed inset-0 z-[60] flex items-start justify-center pt-[15vh]" onClick={dismissError}>
+          <div className="absolute inset-0 bg-black/20" />
+          <div className="relative bg-white rounded-xl shadow-2xl border border-zinc-200 w-[400px] max-w-[90vw] overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="px-5 pt-5 pb-3">
+              <div className="flex items-center gap-2">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="8" x2="12" y2="12" />
+                  <line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+                <h3 className="text-sm font-semibold text-zinc-800">执行失败</h3>
+              </div>
+              <p className="text-xs text-zinc-500 mt-2 ml-[26px] leading-relaxed">{errorDialog}</p>
+            </div>
+            <div className="px-5 pb-4 pt-2 border-t border-zinc-100 flex justify-end">
+              <button onClick={dismissError} className="text-xs px-3 py-1.5 rounded-lg bg-zinc-100 text-zinc-600 hover:bg-zinc-200 transition-colors">知道了</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* API Key 配置弹窗 */}

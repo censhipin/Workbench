@@ -120,6 +120,9 @@ ${colDescriptions}
 {"action":"pipeline","steps":[{"action":"filter","conditions":[{"columnHint":"列A","operator":"=","value":"某值"}]},{"action":"sort","columnHint":"列B","direction":"desc"}]}
 
 	要求:
+6. 公式涉及多个操作符（如 +-*/ 混用）时，必须拆解为 pipeline 多步
+7. "新增列/新增一列"是 formula，"把XX改成/增加"是 update
+8. 新增列=列A×0.9：使用 constantOperand 传常量
 1. 只输出 JSON，不要输出任何解释、Markdown、自然语言
 2. JSON 必须符合上述格式
 3. columnHint 使用中文列名（如"销售人员"、"金额"），不要使用 key
