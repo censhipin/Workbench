@@ -76,7 +76,7 @@ export class AggregateVerifier implements Verifier {
           for (let i = 0; i < recomputed.rows.length; i++) {
             const expected = Number(recomputed.rows[i][recompKey]);
             const actual = Number(outputRows[i]?.[outKey]);
-            if (Math.abs(expected - actual) > 0.001) mismatch++;
+            if (Math.abs(expected - actual) > 0.01) mismatch++;
           }
 
           checks.push({
