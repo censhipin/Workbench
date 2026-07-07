@@ -12,7 +12,8 @@
 
 import { Operator } from './types';
 import type { ConditionExpr } from './types';
-import type { ExecutionPlan, FilterPlan, SortPlan, AggregatePlan, DedupPlan, MatchPlan, MergePlan, CleanPlan, ProjectionPlan, UpdatePlan, FormulaPlan, PipelinePlan } from './execution-plan';
+import type { ExecutionPlan, FilterPlan, SortPlan, AggregatePlan, DedupPlan, MatchPlan, MergePlan, CleanPlan, ProjectionPlan, UpdatePlan, FormulaPlan, PipelinePlan, AggregationDef } from './execution-plan';
+import { getAggregations } from './execution-plan';
 import type { ColumnDef } from '../types';
 import type { DataProfile } from '../v3/profile/types';
 
@@ -166,16 +167,17 @@ function validateSortPlan(plan: SortPlan, columns: ColumnDef[], issues: Validati
 }
 
 function validateAggregatePlan(plan: AggregatePlan, columns: ColumnDef[], issues: ValidationIssue[]): PlanValidationResult {
-  if (!plan.columns || plan.columns.length === 0) {
-    issues.push({ field: 'columns', message: '聚合操作缺少目标列', severity: 'error' });
+  const aggregations = getAggregations(plan);
+  if (aggregations.length === 0) {
+    issues.push({ field: 'aggregations', message: '聚合操作缺少目标列', severity: 'error' });
     return { valid: false, plan, issues };
   }
-  for (const colKey of plan.columns) {
-    const col = resolveCol(colKey, columns);
+  for (const agg of aggregations) {
+    const col = resolveCol(agg.column, columns);
     if (!col) {
-      issues.push({ field: 'columns', message: `聚合列 "${colKey}" 不存在`, severity: 'error' });
+      issues.push({ field: 'aggregations', message: `聚合列 "${agg.column}" 不存在`, severity: 'error' });
     } else if (col.type !== 'number') {
-      issues.push({ field: 'columns', message: `"${col.title}" 不是数值列，聚合可能返回异常`, severity: 'warning' });
+      issues.push({ field: 'aggregations', message: `"${col.title}" 不是数值列，聚合可能返回异常`, severity: 'warning' });
     }
   }
   if (plan.groupBy) {
@@ -389,15 +391,16 @@ function profileValidateAggregate(
   profile: DataProfile,
   issues: ValidationIssue[],
 ): ValidationIssue[] {
-  for (const colKey of plan.columns) {
-    const colProfile = profile.columns.find((c) => c.columnKey === colKey);
+  const aggregations = getAggregations(plan);
+  for (const agg of aggregations) {
+    const colProfile = profile.columns.find((c) => c.columnKey === agg.column);
     if (!colProfile) continue;
 
     // 非数值列做聚合 → 错误
     if (colProfile.type !== 'number') {
       issues.push({
-        field: `columns.${colKey}`,
-        message: `"${colProfile.title}" 列推断类型为 ${colProfile.type}，不是数值类型，${plan.method} 聚合可能返回异常结果`,
+        field: `aggregations.${agg.column}`,
+        message: `"${colProfile.title}" 列推断类型为 ${colProfile.type}，不是数值类型，${agg.method} 聚合可能返回异常结果`,
         severity: 'error',
       });
     }
@@ -405,7 +408,7 @@ function profileValidateAggregate(
     // 空值过多影响聚合准确性
     if (colProfile.nullRate > 0.1) {
       issues.push({
-        field: `columns.${colKey}`,
+        field: `aggregations.${agg.column}`,
         message: `"${colProfile.title}" 列存在 ${(colProfile.nullRate * 100).toFixed(0)}% 空值，聚合结果仅基于非空行`,
         severity: 'warning',
       });

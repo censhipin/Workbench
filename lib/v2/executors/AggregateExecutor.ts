@@ -9,7 +9,8 @@
 // ============================================================
 
 import type { RowData, ColumnDef } from '@/lib/types';
-import { AggMethod } from '../execution-plan';
+import { AggMethod, getAggregations } from '../execution-plan';
+import type { AggregationDef } from '../execution-plan';
 import type { OperationExecutor, ExecutionContext, ExecutorResult } from './types';
 import type { ExecutionPlan } from '../execution-plan';
 
@@ -21,11 +22,18 @@ export class AggregateExecutor implements OperationExecutor {
       throw new Error(`AggregateExecutor 收到错误 type: ${plan.type}`);
     }
 
-    const { method, columns, groupBy } = plan;
+    const { groupBy } = plan;
     const inputRows = ctx.mainSheet.rows;
     const inputColumns = ctx.mainSheet.columns;
 
-    if (!columns || columns.length === 0) {
+    // 向后兼容：旧格式 method+columns → 转为 aggregations
+    const aggregations = plan.aggregations && plan.aggregations.length > 0
+      ? plan.aggregations
+      : (plan.columns && plan.columns.length > 0 && plan.method
+          ? plan.columns.map(col => ({ column: col, method: plan.method! }))
+          : []);
+
+    if (aggregations.length === 0) {
       return {
         result: { columns: inputColumns, rows: [] },
         summary: { totalRecords: 0 },
@@ -39,11 +47,11 @@ export class AggregateExecutor implements OperationExecutor {
 
     // 分组聚合
     if (groups) {
-      return executeGroupedAggregation(groups, groupBy!, method, columns, inputColumns, inputRows);
+      return executeGroupedAggregation(groups, groupBy!, aggregations, inputColumns, inputRows);
     }
 
     // 无分组：全局聚合
-    return executeGlobalAggregation(method, columns, inputColumns, inputRows);
+    return executeGlobalAggregation(aggregations, inputColumns, inputRows);
   }
 }
 
@@ -77,24 +85,22 @@ function buildGroups(rows: RowData[], groupByCols: string[]): GroupEntry[] {
 function executeGroupedAggregation(
   groups: GroupEntry[],
   groupByCols: string[],
-  method: AggMethod,
-  aggColumns: string[],
+  aggregations: AggregationDef[],
   inputColumns: ColumnDef[],
   inputRows: RowData[],
 ): ExecutorResult {
-  const methodLabel = aggMethodLabel(method);
-
   // 构建结果列：分组列 + 聚合列
   const resultCols: ColumnDef[] = [];
   for (const gCol of groupByCols) {
     const def = inputColumns.find(c => c.key === gCol);
     resultCols.push(def || { key: gCol, title: gCol, type: 'text' });
   }
-  for (const aCol of aggColumns) {
-    const def = inputColumns.find(c => c.key === aCol);
+  for (const agg of aggregations) {
+    const def = inputColumns.find(c => c.key === agg.column);
+    const label = aggMethodLabel(agg.method);
     resultCols.push({
-      key: `${aCol}_${methodLabel}`,
-      title: def ? `${def.title}_${methodLabel}` : `${aCol}_${methodLabel}`,
+      key: `${agg.column}_${label}`,
+      title: def ? `${def.title}_${label}` : `${agg.column}_${label}`,
       type: 'number',
     });
   }
@@ -106,14 +112,14 @@ function executeGroupedAggregation(
     // 分组键值
     groupByCols.forEach((c, i) => { row[c] = group.keyValues[i]; });
 
-    // 每列聚合
-    for (const aCol of aggColumns) {
+    // 逐条聚合定义计算
+    for (const agg of aggregations) {
       const nums = group.rows
-        .map(r => r[aCol])
+        .map(r => r[agg.column])
         .filter(v => v != null && v !== '' && !isNaN(Number(v)))
         .map(Number);
-      const resultKey = `${aCol}_${methodLabel}`;
-      row[resultKey] = aggregate(nums, method);
+      const label = aggMethodLabel(agg.method);
+      row[`${agg.column}_${label}`] = aggregate(nums, agg.method);
     }
 
     resultRows.push(row);
@@ -130,26 +136,24 @@ function executeGroupedAggregation(
 // ============================================================
 
 function executeGlobalAggregation(
-  method: AggMethod,
-  aggColumns: string[],
+  aggregations: AggregationDef[],
   inputColumns: ColumnDef[],
   inputRows: RowData[],
 ): ExecutorResult {
-  const methodLabel = aggMethodLabel(method);
-
   const row: RowData = {};
   const resultCols: ColumnDef[] = [];
 
-  for (const aCol of aggColumns) {
-    const def = inputColumns.find(c => c.key === aCol);
+  for (const agg of aggregations) {
+    const def = inputColumns.find(c => c.key === agg.column);
     const nums = inputRows
-      .map(r => r[aCol])
+      .map(r => r[agg.column])
       .filter(v => v != null && v !== '' && !isNaN(Number(v)))
       .map(Number);
-    const resultKey = `${aCol}_${methodLabel}`;
-    const resultTitle = def ? `${def.title}_${methodLabel}` : `${aCol}_${methodLabel}`;
+    const label = aggMethodLabel(agg.method);
+    const resultKey = `${agg.column}_${label}`;
+    const resultTitle = def ? `${def.title}_${label}` : `${agg.column}_${label}`;
 
-    row[resultKey] = aggregate(nums, method);
+    row[resultKey] = aggregate(nums, agg.method);
     resultCols.push({ key: resultKey, title: resultTitle, type: 'number' });
   }
 

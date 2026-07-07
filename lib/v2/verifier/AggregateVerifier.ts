@@ -4,7 +4,7 @@
 // 验证规则：用相同参数重跑 aggregateRows，结果与输出一致
 // ============================================================
 
-import { AggMethod } from '../execution-plan';
+import { AggMethod, getAggregations } from '../execution-plan';
 import { aggregateRows } from '@/lib/data-engine';
 import type { Verifier, VerificationResult } from './types';
 import type { ExecutionPlan } from '../execution-plan';
@@ -23,31 +23,32 @@ export class AggregateVerifier implements Verifier {
       return { passed: false, checks: [{ name: '类型检查', passed: false, detail: `AggregateVerifier 收到错误 type: ${plan.type}` }] };
     }
 
-    const methodStr = aggMethodLabel(plan.method);
-    const columns = plan.columns;
+    const aggregations = getAggregations(plan);
     const groupBy = plan.groupBy ?? [];
 
     // 多列聚合（无分组）：无法用 aggregateRows 重验，做存在性检查
-    if (columns.length > 1) {
+    if (aggregations.length > 1) {
       const lastRow = outputRows[outputRows.length - 1];
       if (!lastRow) {
         return { passed: false, checks: [{ name: '聚合验证', passed: false, detail: '输出为空' }] };
       }
-      const allHaveValues = columns.every(colKey => lastRow[colKey] != null);
+      const allHaveValues = aggregations.every(agg => lastRow[agg.column] != null);
       return {
         passed: allHaveValues,
         checks: [{
           name: '聚合验证',
           passed: allHaveValues,
           detail: allHaveValues
-            ? `多列 ${columns.length} 列聚合完成，共 ${outputRows.length} 行`
+            ? `多列 ${aggregations.length} 列聚合完成，共 ${outputRows.length} 行`
             : '部分聚合列结果为空',
         }],
       };
     }
 
     // 单列聚合：重新计算并比对
-    const aggCol = columns[0];
+    const aggCol = aggregations[0].column;
+    const aggMethod = aggregations[0].method;
+    const methodStr = aggMethodLabel(aggMethod);
     if (!aggCol) {
       return { passed: true, checks: [{ name: '聚合验证', passed: true, detail: '无聚合列（跳过）' }] };
     }

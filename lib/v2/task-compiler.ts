@@ -13,6 +13,7 @@ import {
   type FilterPlan,
   type SortPlan,
   type AggregatePlan,
+  type AggregationDef,
   type DedupPlan,
   type MatchPlan,
   type MergePlan,
@@ -170,10 +171,17 @@ function compileAggregate(plan: TaskPlan, ctx: ColumnContext): CompileResult {
     ?.map((h) => resolveColumn(h, ctx))
     .filter(Boolean) as string[] | undefined;
 
+  // 每列一条 AggregationDef（当前所有列共用一个 method，未来可扩展 AI 按列指定）
+  const aggregations: AggregationDef[] = columnKeys.map(col => ({
+    column: col,
+    method,
+  }));
+
   const result: AggregatePlan = {
     type: 'aggregate',
-    method,
+    aggregations,
     columns: columnKeys,
+    method,
     groupBy: groupByKeys?.length ? groupByKeys : undefined,
     output: compileOutput(plan),
   };

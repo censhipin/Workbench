@@ -29,6 +29,21 @@ export enum AggMethod {
   MIN = 'MIN',
 }
 
+/** 单条聚合定义（列 + 方法） */
+export interface AggregationDef {
+  column: string;
+  method: AggMethod;
+}
+
+/** 从 AggregatePlan 获取聚合定义列表（兼容新旧格式） */
+export function getAggregations(plan: AggregatePlan): AggregationDef[] {
+  if (plan.aggregations && plan.aggregations.length > 0) return plan.aggregations;
+  if (plan.columns && plan.columns.length > 0 && plan.method) {
+    return plan.columns.map(col => ({ column: col, method: plan.method! }));
+  }
+  return [];
+}
+
 /** 排序子句 */
 export interface SortClause {
   columnKey: string;
@@ -69,14 +84,17 @@ export interface SortPlan {
 /**
  * 聚合计划
  * 扁平结构（不套 aggregate 对象）
- *   method: 聚合方法
- *   columns: 聚合目标列
+ *   aggregations: 每列独立指定聚合方式（多列不同方法）
+ *   method / columns: 旧格式，当所有列使用同一方法时由 compiler 转为 aggregations
  *   groupBy: 分组列（可选）
  */
 export interface AggregatePlan {
   type: 'aggregate';
-  method: AggMethod;
-  columns: string[];
+  /** 每条聚合定义：列 + 方法 */
+  aggregations: AggregationDef[];
+  /** 旧格式兼容：所有列使用同一方法 */
+  method?: AggMethod;
+  columns?: string[];
   groupBy?: string[];
   output?: OutputSpec;
 }

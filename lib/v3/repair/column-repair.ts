@@ -13,6 +13,7 @@ import type {
   FilterPlan,
   SortPlan,
   AggregatePlan,
+  AggregationDef,
   DedupPlan,
   MatchPlan,
   MergePlan,
@@ -22,6 +23,7 @@ import type {
   FormulaPlan,
   PipelinePlan,
 } from '../../v2/execution-plan';
+import { getAggregations } from '../../v2/execution-plan';
 import { Operator } from '../../v2/types';
 import { normalizeValue, levenshteinDistance } from './value-repair';
 import type { ColumnValueIndex, RepairRecord } from './repair-types';
@@ -397,13 +399,18 @@ function resolveAggregatePlan(
   columnIndex: ColumnValueIndex[] | undefined,
   repairs: RepairRecord[],
 ): AggregatePlan {
-  const newColumns = resolveKeys(plan.columns, columns, columnIndex, repairs)
-    .filter((k): k is string => k !== null);
+  const oldAggs = getAggregations(plan);
+  const newAggs = oldAggs
+    .map(agg => {
+      const key = resolveSingleKey(agg.column, columns, columnIndex, repairs);
+      return key ? { column: key, method: agg.method } : null;
+    })
+    .filter((a): a is AggregationDef => a !== null);
   const newGroupBy = plan.groupBy
     ? resolveKeys(plan.groupBy, columns, columnIndex, repairs)
         .filter((k): k is string => k !== null)
     : undefined;
-  return { ...plan, columns: newColumns, groupBy: newGroupBy };
+  return { ...plan, aggregations: newAggs, groupBy: newGroupBy };
 }
 
 function resolveDedupPlan(

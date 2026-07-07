@@ -9,6 +9,7 @@
 
 import type { ColumnDef, RowData } from '../../types';
 import type { ExecutionPlan } from '../../v2/execution-plan';
+import { getAggregations } from '../../v2/execution-plan';
 import type { Verifier, VerificationResult } from './types';
 import { computeGroupKeys } from './statistics';
 import { aggregateRows } from '../../data-engine';
@@ -28,16 +29,16 @@ export class AggregateVerifier implements Verifier {
     }
 
     const checks: import('./types').VerificationCheck[] = [];
-    const { method, columns: aggColumns, groupBy } = plan;
-    const groupByCols = groupBy ?? [];
+    const aggregations = getAggregations(plan);
+    const groupByCols = plan.groupBy ?? [];
 
     // 1) Schema 验证
-    const expectedColCount = groupByCols.length + aggColumns.length;
+    const expectedColCount = groupByCols.length + aggregations.length;
     if (outputColumns.length !== expectedColCount) {
       checks.push({
         name: 'Schema 验证',
         passed: false,
-        detail: `输出列数 ${outputColumns.length}，期望 ${expectedColCount}（${groupByCols.length} 分组列 + ${aggColumns.length} 聚合列）`,
+        detail: `输出列数 ${outputColumns.length}，期望 ${expectedColCount}（${groupByCols.length} 分组列 + ${aggregations.length} 聚合列）`,
       });
     } else {
       checks.push({ name: 'Schema 验证', passed: true, detail: `输出 ${outputColumns.length} 列，符合预期` });
@@ -54,9 +55,10 @@ export class AggregateVerifier implements Verifier {
     }
 
     // 3) 重新计算验证（单列聚合时）
-    if (aggColumns.length === 1) {
-      const methodStr = aggMethodStr(method);
-      const aggCol = aggColumns[0];
+    if (aggregations.length === 1) {
+      const agg = aggregations[0];
+      const methodStr = aggMethodStr(agg.method);
+      const aggCol = agg.column;
 
       try {
         const recomputed = aggregateRows(inputRows, groupByCols, aggCol, methodStr, inputColumns);
@@ -91,7 +93,7 @@ export class AggregateVerifier implements Verifier {
         checks.push({ name: '聚合重算', passed: true, detail: '无法重算，跳过' });
       }
     } else {
-      checks.push({ name: '多列聚合', passed: true, detail: `多列聚合 ${aggColumns.length} 列，存在性检查通过` });
+      checks.push({ name: '多列聚合', passed: true, detail: `多列聚合 ${aggregations.length} 列，存在性检查通过` });
     }
 
     // 4) 分组列输出检查
@@ -119,7 +121,7 @@ export class AggregateVerifier implements Verifier {
         inputRowCount: inputRows.length,
         outputRowCount: outputRows.length,
         groupCount: outputRows.length,
-        aggColumnCount: aggColumns.length,
+        aggColumnCount: aggregations.length,
       },
     };
   }

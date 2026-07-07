@@ -66,11 +66,13 @@ function buildPlanSuggestions(plan: ExecutionPlan, profile: DataProfile | null):
   const s: string[] = [];
 
   if (plan.type === 'aggregate' && profile) {
-    for (const colKey of plan.columns) {
+    const aggCols = plan.columns ?? [];
+    const planMethod = plan.method;
+    for (const colKey of aggCols) {
       const colProfile = profile.columns.find(c => c.columnKey === colKey);
-      if (colProfile && colProfile.type !== 'number' && plan.method !== 'COUNT') {
+      if (colProfile && colProfile.type !== 'number' && planMethod !== 'COUNT') {
         const methodNames: Record<string, string> = { SUM: '求和', AVG: '平均值', MAX: '最大值', MIN: '最小值' };
-        s.push(`「${colProfile.title}」列不是数值类型，${methodNames[plan.method] || plan.method}可能无效，建议更换为数值列。`);
+        s.push(`「${colProfile.title}」列不是数值类型，${methodNames[planMethod || 'SUM'] || planMethod}可能无效，建议更换为数值列。`);
       }
     }
   }
