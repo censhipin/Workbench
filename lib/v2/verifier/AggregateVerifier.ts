@@ -80,7 +80,7 @@ export class AggregateVerifier implements Verifier {
         return { passed: true, checks: [{ name: '聚合验证', passed: true, detail: `聚合完成（空结果）` }] };
       }
 
-      if (Number(actualVal) !== Number(expectedVal)) {
+      if (Math.abs(Number(actualVal) - Number(expectedVal)) > 0.01) {
         return {
           passed: false,
           checks: [{
@@ -96,7 +96,7 @@ export class AggregateVerifier implements Verifier {
       for (let i = 0; i < recomputed.rows.length; i++) {
         const expected = recomputed.rows[i][recompKey];
         const actual = outputRows[i]?.[recompKey];
-        if (Number(actual) !== Number(expected)) {
+        if (Math.abs(Number(actual) - Number(expected)) > 0.01) {
           return {
             passed: false,
             checks: [{

@@ -25,6 +25,7 @@ interface DataTableProps {
 
 function formatCell(value: string | number | null) {
   if (value === null || value === undefined) return '';
+  if (typeof value === 'number' && !Number.isInteger(value)) return value.toFixed(2);
   return String(value);
 }
 
