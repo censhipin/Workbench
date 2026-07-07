@@ -109,7 +109,7 @@ export default function DataTable({ columns, rows, maxHeight = '500px', highligh
   }, [rows.length]);
 
   // ─── Row drag handlers ─────────────────────────────────────────────────
-  var hasRowDrag = !!onRowReorder;
+  var hasRowDrag = editMode === 'editing' && !!onRowReorder;
 
   var handleRowDragStart = useCallback(function (e: React.DragEvent) {
     var td = e.currentTarget as HTMLElement;
@@ -155,7 +155,7 @@ export default function DataTable({ columns, rows, maxHeight = '500px', highligh
   }, []);
 
   // ─── Column drag handlers (only on the title row) ──────────────────────
-  var hasColDrag = !!onColumnReorder;
+  var hasColDrag = editMode === 'editing' && !!onColumnReorder;
 
   var handleColDragStart = useCallback(function (e: React.DragEvent) {
     var el = e.currentTarget as HTMLElement;
@@ -281,7 +281,7 @@ export default function DataTable({ columns, rows, maxHeight = '500px', highligh
             style: { width: ROW_NO_W, minWidth: ROW_NO_W, height: 20, padding: 0, fontSize: 10 }
           }),
           columns.map(function (col, ci) {
-            var w = colWidths[col.key] || 80;
+            var w = colWidths[col.key] || undefined;
             return React.createElement('th', {
               key: 'l-' + col.key,
               'data-col-index': ci,
