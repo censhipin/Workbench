@@ -189,6 +189,47 @@ describe('AggregateExecutor', () => {
       if (row.dept === '市场部') expect(row['bonus_合计']).toBe(3000);
     }
   });
+
+  it('AVG 空数据返回 null', () => {
+    const executor = new AggregateExecutor();
+    const plan: ExecutionPlan = {
+      type: 'aggregate',
+      method: AggMethod.AVG,
+      columns: ['bonus'],
+    };
+    // 全部为 null 的行
+    const emptyCtx: ExecutionContext = { mainSheet: { columns, rows: [{ name: '张三', dept: '技术部', bonus: null }] } };
+    const result = executor.execute(plan, emptyCtx);
+    const aggKey = result.result.columns.find((c) => c.title.includes('平均'))!.key;
+    expect(result.result.rows[0][aggKey]).toBeNull();
+  });
+
+  it('MAX 空数据返回 null', () => {
+    const executor = new AggregateExecutor();
+    const plan: ExecutionPlan = { type: 'aggregate', method: AggMethod.MAX, columns: ['bonus'] };
+    const emptyCtx: ExecutionContext = { mainSheet: { columns, rows: [{ name: '张三', dept: '技术部', bonus: null }] } };
+    const result = executor.execute(plan, emptyCtx);
+    const aggKey = result.result.columns.find((c) => c.title.includes('最大'))!.key;
+    expect(result.result.rows[0][aggKey]).toBeNull();
+  });
+
+  it('MIN 空数据返回 null', () => {
+    const executor = new AggregateExecutor();
+    const plan: ExecutionPlan = { type: 'aggregate', method: AggMethod.MIN, columns: ['bonus'] };
+    const emptyCtx: ExecutionContext = { mainSheet: { columns, rows: [{ name: '张三', dept: '技术部', bonus: null }] } };
+    const result = executor.execute(plan, emptyCtx);
+    const aggKey = result.result.columns.find((c) => c.title.includes('最小'))!.key;
+    expect(result.result.rows[0][aggKey]).toBeNull();
+  });
+
+  it('COUNT 空数据返回 0', () => {
+    const executor = new AggregateExecutor();
+    const plan: ExecutionPlan = { type: 'aggregate', method: AggMethod.COUNT, columns: ['bonus'] };
+    const emptyCtx: ExecutionContext = { mainSheet: { columns, rows: [{ name: '张三', dept: '技术部', bonus: null }] } };
+    const result = executor.execute(plan, emptyCtx);
+    const aggKey = result.result.columns.find((c) => c.title.includes('计数'))!.key;
+    expect(result.result.rows[0][aggKey]).toBe(0);
+  });
 });
 
 describe('DedupExecutor', () => {
@@ -239,13 +280,14 @@ describe('CleanExecutor', () => {
   });
 });
 
-describe('MatchExecutor / MergeExecutor — 缺表报错', () => {
-  it('match 缺表抛异常', () => {
+describe('MatchExecutor / MergeExecutor — 缺表降级', () => {
+  it('match 缺表不抛异常，降级保留左表', () => {
     const executor = new MatchExecutor();
     const plan: ExecutionPlan = { type: 'match', matchColumns: ['name'], lookupTables: [] };
     const ctx: ExecutionContext = { mainSheet: { columns: [], rows: [] } };
 
-    expect(() => executor.execute(plan, ctx)).toThrow('至少 2 个表');
+    const result = executor.execute(plan, ctx);
+    expect(result.summary.totalRecords).toBe(0);
   });
 
   it('merge 缺表抛异常', () => {
@@ -254,5 +296,84 @@ describe('MatchExecutor / MergeExecutor — 缺表报错', () => {
     const ctx: ExecutionContext = { mainSheet: { columns: [], rows: [] } };
 
     expect(() => executor.execute(plan, ctx)).toThrow('至少 2 个表');
+  });
+});
+
+describe('MatchExecutor — Left Join 语义验证', () => {
+  it('左表全部保留，右表未匹配不新增行', () => {
+    const executor = new MatchExecutor();
+    const plan: ExecutionPlan = { type: 'match', matchColumns: ['name'], lookupTables: ['t2'] };
+    const leftCols: ColumnDef[] = [
+      { key: 'name', title: '姓名', type: 'text' },
+      { key: 'dept', title: '部门', type: 'text' },
+    ];
+    const leftRows: RowData[] = [
+      { name: '张三', dept: '技术部' },
+      { name: '李四', dept: '市场部' },
+      { name: '王五', dept: '销售部' },
+    ];
+    const rightCols: ColumnDef[] = [
+      { key: 'name', title: '姓名', type: 'text' },
+      { key: 'city', title: '城市', type: 'text' },
+    ];
+    const rightRows: RowData[] = [
+      { name: '张三', city: '北京' },
+      { name: '赵六', city: '广州' }, // 赵六不应出现在结果中
+    ];
+    const ctx: ExecutionContext = {
+      mainSheet: { columns: leftCols, rows: leftRows },
+      taskSheets: [{ columns: rightCols, rows: rightRows, name: 't2' }],
+    };
+    const r = executor.execute(plan, ctx);
+    // 结果应是 3 行（左表全部保留）
+    expect(r.result.rows.length).toBe(3);
+    const zhangRow = r.result.rows.find((row: RowData) => row.name === '张三');
+    expect(zhangRow?.['_lkp_city']).toBe('北京');
+    const wangRow = r.result.rows.find((row: RowData) => row.name === '王五');
+    expect(wangRow?.['_lkp_city']).toBeNull();
+    // 赵六不应存在于结果中
+    const zhaoRow = r.result.rows.find((row: RowData) => row.name === '赵六');
+    expect(zhaoRow).toBeUndefined();
+  });
+
+  it('多列复合键匹配', () => {
+    const executor = new MatchExecutor();
+    const plan: ExecutionPlan = { type: 'match', matchColumns: ['name', 'dept'], lookupTables: ['t2'] };
+    const leftCols: ColumnDef[] = [
+      { key: 'name', title: '姓名', type: 'text' },
+      { key: 'dept', title: '部门', type: 'text' },
+    ];
+    const leftRows: RowData[] = [
+      { name: '张三', dept: '技术部' },
+      { name: '张三', dept: '市场部' },
+    ];
+    const rightCols: ColumnDef[] = [
+      { key: 'name', title: '姓名', type: 'text' },
+      { key: 'dept', title: '部门', type: 'text' },
+      { key: 'city', title: '城市', type: 'text' },
+    ];
+    const rightRows: RowData[] = [
+      { name: '张三', dept: '技术部', city: '北京' },
+    ];
+    const ctx: ExecutionContext = {
+      mainSheet: { columns: leftCols, rows: leftRows },
+      taskSheets: [{ columns: rightCols, rows: rightRows, name: 't2' }],
+    };
+    const r = executor.execute(plan, ctx);
+    expect(r.result.rows.length).toBe(2);
+    const techZhang = r.result.rows.find((row: RowData) => row.name === '张三' && row.dept === '技术部');
+    expect(techZhang?.['_lkp_city']).toBe('北京');
+  });
+
+  it('空右表不抛异常', () => {
+    const executor = new MatchExecutor();
+    const plan: ExecutionPlan = { type: 'match', matchColumns: ['name'], lookupTables: ['t2'] };
+    const ctx: ExecutionContext = {
+      mainSheet: { columns: [{ key: 'name', title: '姓名', type: 'text' }], rows: [{ name: '张三' }] },
+      taskSheets: [],
+    };
+    const r = executor.execute(plan, ctx);
+    expect(r.result.rows.length).toBe(1);
+    expect(r.summary.totalRecords).toBe(1);
   });
 });

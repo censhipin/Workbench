@@ -157,8 +157,36 @@ describe('Group 1: 简单任务 (10个)', () => {
   // T7: 合并两个表 (merge)
   it('T7: 合并两个表', () => {
     const plan: TaskPlan = { action: 'merge' };
-    const r = runPlan(plan);
+    const compiled = compile(plan, salaryCols);
+    expect(compiled.success).toBe(true);
+    expect(compiled.plan).toBeDefined();
+    // 用两份不同数据测试 merge
+    const bonusCols: ColumnDef[] = [
+      { key: 'name', title: '姓名', type: 'text' },
+      { key: 'dept', title: '部门', type: 'text' },
+      { key: 'position', title: '职位', type: 'text' },
+    ];
+    const bonusRows: RowData[] = [
+      { name: '张三', dept: '技术部', position: '工程师' },
+      { name: '李四', dept: '市场部', position: '主管' },
+    ];
+    const extraCols: ColumnDef[] = [
+      { key: 'name', title: '姓名', type: 'text' },
+      { key: 'dept', title: '部门', type: 'text' },
+      { key: 'level', title: '职级', type: 'text' },
+    ];
+    const extraRows: RowData[] = [
+      { name: '王五', dept: '技术部', level: '高级' },
+      { name: '赵六', dept: '市场部', level: '中级' },
+    ];
+    const r = runExecutionPlan(compiled.plan!, { columns: salaryCols, rows: salaryRows }, [
+      { columns: bonusCols, rows: bonusRows, name: 'Sheet2' },
+      { columns: extraCols, rows: extraRows, name: 'Sheet3' },
+    ]);
     expect(r.success).toBe(true);
+    if (r.data) {
+      expect(r.data.rows.length).toBeGreaterThanOrEqual(2);
+    }
   });
 
   // T8: 规则解析: 按基本工资排序
@@ -504,11 +532,12 @@ describe('Group 3: 边界情况 (10个)', () => {
       v2plan: compiled.plan,
     };
     const r = runExecutionEngine(intent, mockFile, 'Sheet1', [mockFile]);
-    expect(r.steps.length).toBe(5);
+    expect(r.steps.length).toBe(6);
     expect(r.steps[0].description).toBe('解析用户意图');
     expect(r.steps[1].description).toBe('验证输入参数');
     expect(r.steps[2].description).toBe('执行数据处理');
     expect(r.steps[3].description).toBe('验证执行结果');
     expect(r.steps[4].description).toBe('生成结果报告');
+    expect(r.steps[5].description).toBe('智能解释');
   });
 });

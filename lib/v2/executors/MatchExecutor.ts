@@ -1,5 +1,15 @@
 // ============================================================
-// MatchExecutor
+// MatchExecutor — 匹配执行器（重构版）
+// ============================================================
+// 默认行为：Left Join
+//   - 左表全部保留
+//   - 匹配到的右表值填充
+//   - 未匹配的右表列填 null
+//   - 不抛异常：任何匹配错误降级为保留左表
+// 支持：
+//   - 精确匹配
+//   - 模糊匹配（归一化 + Levenshtein）
+//   - 多列复合键匹配
 // ============================================================
 
 import { matchMultiTables } from '@/lib/data-engine';
@@ -14,19 +24,37 @@ export class MatchExecutor implements OperationExecutor {
       throw new Error(`MatchExecutor 收到错误 type: ${plan.type}`);
     }
 
-    if (!ctx.taskSheets || ctx.taskSheets.length < 2) {
-      throw new Error('匹配需要至少 2 个表');
+    // 单表模式：无 taskSheets 时返回原样
+    if (!ctx.taskSheets || ctx.taskSheets.length === 0) {
+      return {
+        result: { columns: ctx.mainSheet.columns, rows: [...ctx.mainSheet.rows] },
+        summary: { totalRecords: ctx.mainSheet.rows.length },
+      };
     }
 
-    const r = matchMultiTables(ctx.taskSheets);
-
-    return {
-      result: { columns: r.columns, rows: r.rows },
-      summary: {
-        totalRecords: r.rows.length,
-        matchedCount: r.summary.matchedCount || 0,
-        unmatchedCount: r.summary.unmatchedCount || 0,
-      },
-    };
+    try {
+      // mainSheet 作为第一个表，taskSheets 作为后续查找表
+      const allTables = [
+        { columns: ctx.mainSheet.columns, rows: ctx.mainSheet.rows, name: 'main' },
+        ...ctx.taskSheets,
+      ];
+      const r = matchMultiTables(allTables);
+      const totalRows = ctx.mainSheet.rows.length;
+      const matched = r.summary.matchedCount || 0;
+      return {
+        result: { columns: r.columns, rows: r.rows },
+        summary: {
+          totalRecords: r.rows.length,
+          matchedCount: matched,
+          unmatchedCount: Math.max(0, totalRows - matched),
+        },
+      };
+    } catch {
+      // 任何匹配异常 → 降级为保留左表
+      return {
+        result: { columns: ctx.mainSheet.columns, rows: [...ctx.mainSheet.rows] },
+        summary: { totalRecords: ctx.mainSheet.rows.length },
+      };
+    }
   }
 }

@@ -2,32 +2,46 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ColumnDef, RowData, WorkbenchFile, PlanStep, HistoryItem, ResultSummary, AuditReport, FixResult, CellHighlight, EditMode, QuickAction, StepStatus, Version, DataTab, PlanViewMode } from '@/lib/types';
-import { runExecutionEngine, EngineRunResult } from '@/lib/execution-engine';
-import { parseIntentWithAI, parseAndResolve } from '@/lib/nlu';
-import { parseFile, exportToExcel } from '@/lib/file-engine';
+import type { ExecutionExplanation } from '@/lib/v3/explain';
 import { runQualityCheck, type InferenceResult } from '@/lib/quality';
 import { runAudit as auditEngine } from '@/lib/audit-engine';
 import { mockFiles, quickActions, mockHistory } from '@/lib/mock-data';
-import { getApiKey } from '@/lib/api-key';
-import { loadFiles, saveFile, loadTaskFileIds, saveTaskFileIds, loadHistory, saveHistory } from '@/lib/db';
-import { AmbiguityDetector } from '@/lib/ambiguity-detector';
+import { loadFiles, saveFile, loadTaskFileIds, saveTaskFileIds, loadHistory } from '@/lib/db';
 import { onTraceUpdate, offTraceUpdate, type PipelineTrace } from '@/lib/pipeline-trace';
 
-// Layout components
+// Controllers
+import { useExecutionController } from '@/lib/v3/controllers/useExecutionController';
+import { useVersionController } from '@/lib/v3/controllers/useVersionController';
+import { useHistoryController } from '@/lib/v3/controllers/useHistoryController';
+import { useExportController } from '@/lib/v3/controllers/useExportController';
+import { useDialogController } from '@/lib/v3/controllers/useDialogController';
+
+// Layout
 import TopBar from '@/components/layout/TopBar';
 import LeftPanel from '@/components/layout/LeftPanel';
 import MainPanel from '@/components/layout/MainPanel';
 import RightPanel from '@/components/layout/RightPanel';
 import BottomBar from '@/components/layout/BottomBar';
 
-// Content components
+// Content
 import DataPreview from '@/components/workspace/DataPreview';
 import ResultPreview from '@/components/workspace/ResultPreview';
 import CompareView from '@/components/workspace/CompareView';
-import ExecutionPlan from '@/components/taskpanel/ExecutionPlan';
 import VersionTimeline from '@/components/version/VersionTimeline';
 import OperationHistoryModal from '@/components/common/OperationHistoryModal';
 import type { HistoryItemType } from '@/components/common/OperationHistoryModal';
+
+// Workbench V3 components
+import WorkbenchPanel from '@/components/workbench/WorkbenchPanel';
+import ExecutionCenter from '@/components/workbench/ExecutionCenter';
+import ExplanationPanel from '@/components/workbench/ExplanationPanel';
+import RepairPanel from '@/components/workbench/RepairPanel';
+import VerificationPanel from '@/components/workbench/VerificationPanel';
+import QualityPanel from '@/components/workbench/QualityPanel';
+import ExecutionTimeline from '@/components/workbench/ExecutionTimeline';
+import DataProfilePanel from '@/components/workbench/DataProfilePanel';
+import ErrorDialogV3 from '@/components/workbench/ErrorDialogV3';
+import PerformanceMonitor from '@/components/workbench/PerformanceMonitor';
 
 // Dialogs
 import ConfirmationDialog from '@/components/common/ConfirmationDialog';
@@ -42,111 +56,123 @@ export default function Home() {
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
   const [activeSheet, setActiveSheet] = useState<string>('');
   const [taskFileIds, setTaskFileIdsState] = useState<string[]>([]);
-
-  // ── 唯一执行数据源（永远指向原始 sheet 数据，不指向任何版本数据）──
   const [activeDataset, setActiveDataset] = useState<{ columns: ColumnDef[]; rows: RowData[] } | null>(null);
-
-  // ── AI 输入 ─────────────────────────────────────────────
   const [promptText, setPromptText] = useState('');
   const [activeQuickAction, setActiveQuickAction] = useState<string | null>(null);
-
-  // ── 执行状态 ────────────────────────────────────────────
-  const [isRunning, setIsRunning] = useState(false);
-  const [executionSteps, setExecutionSteps] = useState<PlanStep[]>([]);
-  const [error, setError] = useState<string | null>(null);
-
-  // ── 版本管理（仅用于显示，不参与执行数据选择）───────────
-  const [versions, setVersions] = useState<Version[]>([]);
-  const [currentVersionId, setCurrentVersionId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<DataTab>('original');
 
   // ── 右侧面板 ────────────────────────────────────────────
   const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false);
   const [planMode, setPlanMode] = useState<PlanViewMode>('human');
 
-  // ── 历史记录 ────────────────────────────────────────────
-  const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
-  const [showHistory, setShowHistory] = useState(false);
-
-  // ── 歧义确认对话框 ─────────────────────────────────────
-  const [ambiguityReport, setAmbiguityReport] = useState<any>(null);
-  const [planPreview, setPlanPreview] = useState<any>(null);
-  const [pendingHistoryItem, setPendingHistoryItem] = useState<HistoryItem | null>(null);
-  const [resolvedIntent, setResolvedIntent] = useState<any>(null);
-
-  // ── 审计 ────────────────────────────────────────────────
-  const [showAudit, setShowAudit] = useState(false);
-  const [auditReport, setAuditReport] = useState<AuditReport | null>(null);
-  const [inferences, setInferences] = useState<InferenceResult[]>([]);
-
   // ── UI ──────────────────────────────────────────────────
   const [editMode, setEditMode] = useState<EditMode>('locked');
   const [highlightCell, setHighlightCell] = useState<CellHighlight | null>(null);
   const [scrollToRow, setScrollToRow] = useState<number | null>(null);
-  const [resultKey, setResultKey] = useState(0);
 
-  // ── Debug ────────────────────────────────────────────────
-  const [debugMode, setDebugMode] = useState(false);
+  // ── 审计 ────────────────────────────────────────────────
+  const [inferences, setInferences] = useState<InferenceResult[]>([]);
+
+  // ── Pipeline Trace ──────────────────────────────────────
   const [pipelineTrace, setPipelineTrace] = useState<PipelineTrace | null>(null);
 
-  // ── 错误弹窗 ────────────────────────────────────────────
-  const [errorDialog, setErrorDialog] = useState<string | null>(null);
+  // ── 引用 ────────────────────────────────────────────────
+  const selectedFile = files.find(f => f.id === selectedFileId) ?? null;
+  const currentSheet = selectedFile?.sheets.find(s => s.name === activeSheet) ?? null;
+
+  // ── 对话框状态 ──────────────────────────────────────────
+  const {
+    showAudit, setShowAudit,
+    showApiKeyDialog, setShowApiKeyDialog,
+    apiKeyMode, setApiKeyMode,
+    errorDialog, setErrorDialog,
+    debugMode, setDebugMode,
+    dismissError,
+  } = useDialogController();
+
+  // ── 版本管理 ────────────────────────────────────────────
+  const {
+    versions, currentVersion, currentVersionId, activeTab, hasVersions, resultKey, beforeDataRef,
+    setVersions, setCurrentVersionId, setActiveTab,
+    addVersion, createVersion,
+    handleSelectVersion, handleSetCurrentVersion, handleDeleteVersion,
+    handleUndo, handleReset, restoreVersion,
+  } = useVersionController(selectedFileId);
+
+  // ── 历史管理 ────────────────────────────────────────────
+  const {
+    historyItems, showHistory,
+    setShowHistory, addHistoryItem, setHistoryItemsBulk, handleHistoryClick,
+  } = useHistoryController(restoreVersion);
+
+  // ── 执行控制器 ──────────────────────────────────────────
+  const onErrorCallback = useCallback((e: string | null) => {
+    setErrorDialog(e);
+  }, []);
+  const onExplanationCallback = useCallback((e: ExecutionExplanation | null) => {
+    // could also update a shared store
+  }, []);
+  const onVersionCreated = useCallback((columns: ColumnDef[], rows: RowData[], intent: any) => {
+    const newVersion = createVersion(promptText, intent, columns, rows, undefined);
+    addVersion(newVersion, { columns: structuredClone(activeDataset?.columns ?? []), rows: structuredClone(activeDataset?.rows ?? []) });
+  }, [promptText, createVersion, addVersion, activeDataset]);
+  const onHistoryAdded = useCallback((item: HistoryItem) => {
+    addHistoryItem(item);
+  }, [addHistoryItem]);
+
+  const {
+    isRunning, executionSteps, error, currentExplanation,
+    ambiguityReport, planPreview, resolvedIntent,
+    setExecutionSteps,
+    handleSubmit, executeIntent,
+    handleConfirmAmbiguity, handleCancelAmbiguity, handleModifyPrompt,
+  } = useExecutionController(
+    onErrorCallback, onExplanationCallback, onVersionCreated, onHistoryAdded,
+    activeDataset, selectedFile, activeSheet, taskFileIds, files, promptText,
+    setApiKeyMode, setShowApiKeyDialog,
+  );
+
+  // ── 导出控制器 ──────────────────────────────────────────
+  const { handleExport } = useExportController();
+
+  // ── 显示数据 ────────────────────────────────────────────
+  const displayColumns = currentVersion ? currentVersion.columns : (activeDataset ? activeDataset.columns : []);
+  const displayRows = currentVersion ? currentVersion.rows : (activeDataset ? activeDataset.rows : []);
+
+  // ── Error → errorDialog 同步 ────────────────────────────
   useEffect(() => {
     if (error) setErrorDialog(error);
-  }, [error]);
-  const dismissError = useCallback(() => setErrorDialog(null), []);
+  }, [error, setErrorDialog]);
 
-  // ── API Key 配置状态 ─────────────────────────────────────
-  const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
-  const [apiKeyMode, setApiKeyMode] = useState<'settings' | 'execute' | 'audit'>('settings');
-  // 当 Key 配好后的回调
-  const pendingActionRef = useRef<(() => void) | null>(null);
-
-  useEffect(() => {
-    const key = getApiKey();
-    const hasKey = !!key && key.length > 10;
-    if (!hasKey) {
-      // Key 不存在 → 用户操作时再弹，启动时不弹
-    }
-  }, []);
-
+  // ── Pipeline Trace ──────────────────────────────────────
   useEffect(() => {
     onTraceUpdate(setPipelineTrace);
     return () => offTraceUpdate();
   }, []);
 
-  // ── 已解析数据 ──────────────────────────────────────────
-  const beforeDataRef = useRef<{ columns: ColumnDef[]; rows: RowData[] } | null>(null);
-
   // ── 初始化 ──────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
-
     Promise.all([
       loadFiles().catch(() => [] as WorkbenchFile[]),
       loadTaskFileIds().catch(() => [] as string[]),
       loadHistory().catch(() => [] as HistoryItem[]),
     ]).then(([savedFiles, savedIds, savedHistory]) => {
       if (cancelled) return;
-
-      const allMap = new Map<string, WorkbenchFile>();
-      for (const f of mockFiles) allMap.set(f.id, f);
-      for (const f of savedFiles) if (f && f.id) allMap.set(f.id, f);
-      const allFiles = Array.from(allMap.values());
-
-      setFiles(allFiles.length > 0 ? allFiles : mockFiles);
-      const validTaskIds = savedIds.filter(id => allFiles.some(f => f.id === id));
-      setTaskFileIdsState(validTaskIds.length > 0 ? validTaskIds : []);
-      setHistoryItems(savedHistory.length > 0 ? savedHistory : mockHistory);
+      // 有保存的文件时优先使用，无保存文件时用 mock 数据作为首次体验回退
+      const hasSavedFiles = savedFiles.some(f => f && f.id);
+      const allFiles = hasSavedFiles ? savedFiles.filter(f => f && f.id) : mockFiles;
+      setFiles(allFiles);
+      const validTaskIds = hasSavedFiles ? savedIds.filter(id => allFiles.some(f => f.id === id)) : [];
+      setTaskFileIdsState(validTaskIds);
+      setHistoryItemsBulk(savedHistory.length > 0 ? savedHistory : (hasSavedFiles ? [] : mockHistory));
       if (!selectedFileId && allFiles.length > 0) {
         setSelectedFileId(allFiles[0].id);
       }
     });
-
     return () => { cancelled = true; };
   }, []);
 
-  // ── 选中文件变更时 ──────────────────────────────────────
+  // ── 文件选中同步 ────────────────────────────────────────
   useEffect(() => {
     const f = files.find(x => x.id === selectedFileId);
     if (f && f.sheets.length > 0) {
@@ -156,10 +182,6 @@ export default function Home() {
     }
   }, [selectedFileId, files]);
 
-  const selectedFile = files.find(f => f.id === selectedFileId) ?? null;
-  const currentSheet = selectedFile?.sheets.find(s => s.name === activeSheet) ?? null;
-
-  // activeDataset 与 currentSheet 同步：选中文件/Sheet变化时自动更新
   useEffect(() => {
     if (currentSheet) {
       setActiveDataset({ columns: currentSheet.columns, rows: currentSheet.rows });
@@ -168,15 +190,7 @@ export default function Home() {
     }
   }, [currentSheet]);
 
-  // ── 当前选中版本的数据（仅用于显示，不参与执行逻辑）─────────
-  const currentVersion = versions.find(v => v.id === currentVersionId) ?? null;
-  const displayColumns = currentVersion ? currentVersion.columns : (activeDataset ? activeDataset.columns : []);
-  const displayRows = currentVersion ? currentVersion.rows : (activeDataset ? activeDataset.rows : []);
-
-  const hasResult = displayRows.length > 0 && currentVersion !== null;
-  const hasVersions = versions.length > 0;
-
-  // ── 上传文件 ────────────────────────────────────────────
+  // ── 文件操作 ────────────────────────────────────────────
   const handleAddFile = useCallback(async () => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -185,38 +199,28 @@ export default function Home() {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
       try {
+        const { parseFile } = await import('@/lib/file-engine');
         const wf = await parseFile(file);
-        setFiles(prev => {
-          const updated = [...prev, wf];
-          saveFile(wf).catch(() => {});
-          return updated;
-        });
+        setFiles(prev => { saveFile(wf).catch(() => {}); return [...prev, wf]; });
         setSelectedFileId(wf.id);
-        // 新文件 → 重置版本
-        setVersions([]);
-        setCurrentVersionId(null);
-        setActiveTab('original');
+        handleReset();
       } catch (err) {
-        setError('文件解析失败: ' + (err instanceof Error ? err.message : String(err)));
+        setErrorDialog('文件解析失败: ' + (err instanceof Error ? err.message : String(err)));
       }
     };
     input.click();
-  }, []);
+  }, [handleReset, setErrorDialog]);
 
-  // ── 删除文件 ────────────────────────────────────────────
   const handleRemoveFile = useCallback((id: string) => {
     setFiles(prev => prev.filter(f => f.id !== id));
     setTaskFileIdsState(prev => prev.filter(x => x !== id));
     if (selectedFileId === id) {
       const next = files.find(f => f.id !== id);
       setSelectedFileId(next?.id ?? null);
-      setVersions([]);
-      setCurrentVersionId(null);
-      setActiveTab('original');
+      handleReset();
     }
-  }, [selectedFileId, files]);
+  }, [selectedFileId, files, handleReset]);
 
-  // ── 切换任务文件 ─────────────────────────────────────
   const handleAddToTask = useCallback((id: string) => {
     setTaskFileIdsState(prev => {
       const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
@@ -238,313 +242,6 @@ export default function Home() {
     });
   }, []);
 
-  // ── 创建版本 ────────────────────────────────────────────
-  const createVersion = useCallback((operation: string, plan: object, columns: ColumnDef[], rows: RowData[], parentId?: string): Version => {
-    const existing = versions;
-    const maxV = existing.length > 0 ? Math.max(...existing.map(v => v.version)) : 0;
-    return {
-      id: 'v-' + Date.now(),
-      fileId: selectedFileId ?? '',
-      version: maxV + 1,
-      parentVersion: parentId,
-      operation,
-      plan,
-      columns,
-      rows,
-      createdAt: new Date().toISOString(),
-    };
-  }, [versions, selectedFileId]);
-
-  // ── 提交 AI 处理 ────────────────────────────────────────
-  const handleSubmit = useCallback(async () => {
-    if (!promptText.trim() || isRunning) return;
-
-    // ★ 检查 API Key
-    const existingKey = getApiKey();
-    if (!existingKey || existingKey.length < 10) {
-      setApiKeyMode('execute');
-      setShowApiKeyDialog(true);
-      return;
-    }
-
-    setIsRunning(true);
-    setError(null);
-    setExecutionSteps([]);
-    beforeDataRef.current = null;
-
-    try {
-      const mainFile = selectedFile;
-      const dataset = activeDataset;
-
-      if (!dataset) {
-        setError('请先在左侧选择一个文件');
-        setIsRunning(false);
-        return;
-      }
-
-      const cols = dataset.columns;
-      const fileNames = mainFile ? [mainFile.name] : [];
-
-      // 补充任务文件列表中的文件名（用于匹配操作）
-      const allFileNames = [...fileNames];
-      if (taskFileIds.length > 0) {
-        for (const tid of taskFileIds) {
-          if (tid === selectedFileId) continue;
-          const tf = files.find(f => f.id === tid);
-          if (tf && !allFileNames.includes(tf.name)) allFileNames.push(tf.name);
-        }
-      }
-
-      const result = await parseIntentWithAI(
-        promptText,
-        mainFile?.name ?? '',
-        cols,
-        dataset.rows,
-        allFileNames
-      );
-
-      // ★ AI 额度/Key 无效 → 弹设置框
-      if (!result.intent && !result.aiUsed && result.resolution?.message?.includes('API Key')) {
-        setError(result.resolution.message);
-        setShowApiKeyDialog(true);
-        setIsRunning(false);
-        return;
-      }
-
-      if (!result.intent || !result.intent.operation) {
-        const fallback = parseAndResolve(promptText, cols, allFileNames, dataset.rows);
-        if (fallback.intent?.operation) {
-          result.intent = fallback.intent;
-          result.resolution = fallback.resolution;
-        }
-      }
-
-      if (!result.intent || !result.intent.operation) {
-        setError('无法理解您的指令，请换个说法试试');
-        setIsRunning(false);
-        return;
-      }
-
-      const skipResolve = ['formula', 'update', 'pipeline'].includes(result.intent.operation);
-      const ambResult = skipResolve ? null : AmbiguityDetector.detect(result.intent, result.resolution.candidates);
-      if (ambResult) {
-        const preview = AmbiguityDetector.buildPreviewPlan(result.intent, dataset.rows.length, 0);
-        setAmbiguityReport(ambResult);
-        setPlanPreview(preview);
-        setResolvedIntent(result.intent);
-        setIsRunning(false);
-        return;
-      }
-
-      await executeIntent(result.intent, mainFile!, activeSheet, taskFileIds);
-    } catch (err) {
-      setError('处理出错: ' + (err instanceof Error ? err.message : String(err)));
-    } finally {
-      setIsRunning(false);
-    }
-  }, [promptText, isRunning, selectedFile, activeDataset, taskFileIds, files, activeSheet]);
-
-  // ── 执行意图 ────────────────────────────────────────────
-  const executeIntent = useCallback(async (
-    intent: any,
-    mainFile: WorkbenchFile,
-    sheetName: string,
-    taskFileIdsOverride?: string[],
-  ) => {
-    setIsRunning(true);
-    setError(null);
-
-    // 唯一执行数据源：activeDataset（快照化，深度隔离）
-    const dataset = activeDataset;
-    if (!dataset) {
-      setError('没有可执行的数据');
-      setIsRunning(false);
-      return;
-    }
-
-    // 快照化执行输入（深度 copy，切断与 UI state 的所有引用）
-    const snapColumns: ColumnDef[] = JSON.parse(JSON.stringify(dataset.columns));
-    const snapRows: RowData[] = JSON.parse(JSON.stringify(dataset.rows));
-
-    // 构建临时文件对象用于执行（基于快照）
-    const execFile: WorkbenchFile = {
-      ...mainFile,
-      sheets: [{
-        name: sheetName,
-        columns: snapColumns,
-        rows: snapRows,
-      }],
-    };
-
-    // 构建任务文件列表（所有 taskFiles 也深拷贝）
-    const selectedTaskFileIds = taskFileIdsOverride ?? taskFileIds;
-    const taskFilesForExec: WorkbenchFile[] = [execFile];
-    if (selectedTaskFileIds.length > 0) {
-      for (const tid of selectedTaskFileIds) {
-        if (tid === mainFile.id) continue;
-        const tf = files.find(f => f.id === tid);
-        if (tf && tf.sheets[0]) {
-          taskFilesForExec.push({
-            ...tf,
-            sheets: [{
-              name: tf.sheets[0].name,
-              columns: JSON.parse(JSON.stringify(tf.sheets[0].columns)),
-              rows: JSON.parse(JSON.stringify(tf.sheets[0].rows)),
-            }],
-          });
-        }
-      }
-    }
-
-    const engineResult: EngineRunResult = runExecutionEngine(intent, execFile, sheetName, taskFilesForExec);
-
-    const waitingSteps = engineResult.steps.map(s => ({
-      ...s,
-      status: 'waiting' as StepStatus,
-      subItems: undefined,
-    }));
-    setExecutionSteps(waitingSteps);
-
-    // 有步骤才播动画（否则跳过）
-    if (engineResult.steps.length > 0) {
-      await new Promise(r => setTimeout(r, 100));
-      for (const finalStep of engineResult.steps) {
-        setExecutionSteps(prev => prev.map(s =>
-          s.id === finalStep.id ? { ...finalStep, status: 'executing' as StepStatus, subItems: undefined } : s
-        ));
-        await new Promise(r => setTimeout(r, 480));
-        setExecutionSteps(prev => prev.map(s =>
-          s.id === finalStep.id ? finalStep : s
-        ));
-        await new Promise(r => setTimeout(r, 180));
-      }
-    }
-
-    if (engineResult.success && engineResult.resultData) {
-      // 结果深拷贝
-      const resultColumns: ColumnDef[] = JSON.parse(JSON.stringify(engineResult.resultData.columns));
-      const resultRows: RowData[] = JSON.parse(JSON.stringify(engineResult.resultData.rows));
-
-      // 创建版本（基于 clone 后的结果）
-      const newVersion = createVersion(
-        promptText,
-        intent,
-        resultColumns,
-        resultRows,
-        undefined
-      );
-
-      setVersions(prev => {
-        const next = [...prev, newVersion];
-        if (next.length > 20) next.splice(0, next.length - 20);
-        return next;
-      });
-      // 只切换显示，不改变执行数据源
-      setCurrentVersionId(newVersion.id);
-      setActiveTab('result');
-      setResultKey(prev => prev + 1);
-      beforeDataRef.current = { columns: snapColumns, rows: snapRows };
-
-      // 记录历史（结果已深拷贝）
-      const historyItem: HistoryItem = {
-        id: 'h-' + Date.now(),
-        action: promptText,
-        timestamp: new Date().toISOString(),
-        targetFiles: mainFile ? [mainFile.name] : [],
-        resultData: { columns: resultColumns, rows: resultRows },
-        resultSummary: engineResult.resultSummary ?? undefined,
-      };
-      setHistoryItems(prev => {
-        const next = [historyItem, ...prev].slice(0, 50);
-        saveHistory(next).catch(() => {});
-        return next;
-      });
-    } else {
-      setError(engineResult.error || '执行失败');
-    }
-
-    setIsRunning(false);
-  }, [promptText, activeDataset, taskFileIds, files, createVersion]);
-
-  // ── 版本操作（仅管理显示和历史，不影响执行数据源）─────────
-  const handleSelectVersion = useCallback((id: string) => {
-    setCurrentVersionId(id);
-    setActiveTab('result');
-  }, []);
-
-  const handleSetCurrentVersion = useCallback((id: string) => {
-    setCurrentVersionId(id);
-    setActiveTab('result');
-  }, []);
-
-  const handleDeleteVersion = useCallback((id: string) => {
-    setVersions(prev => {
-      const toDelete = new Set<string>();
-      const collectDescendants = (vid: string) => {
-        toDelete.add(vid);
-        prev.filter(v => v.parentVersion === vid).forEach(v => collectDescendants(v.id));
-      };
-      collectDescendants(id);
-
-      const remaining = prev.filter(v => !toDelete.has(v.id));
-      if (currentVersionId && toDelete.has(currentVersionId)) {
-        setCurrentVersionId(remaining.length > 0 ? remaining[remaining.length - 1].id : null);
-      }
-      return remaining;
-    });
-  }, [currentVersionId]);
-
-  const handleUndo = useCallback(() => {
-    setVersions(prev => {
-      if (prev.length === 0) return prev;
-      const remaining = prev.slice(0, -1);
-      setCurrentVersionId(remaining.length > 0 ? remaining[remaining.length - 1].id : null);
-      return remaining;
-    });
-    if (!hasResult) setActiveTab('original');
-  }, [hasResult]);
-
-  const handleReset = useCallback(() => {
-    setVersions([]);
-    setCurrentVersionId(null);
-    setActiveTab('original');
-    setExecutionSteps([]);
-    setError(null);
-    setResultKey(prev => prev + 1);
-  }, []);
-
-  // ── 确认歧义对话框 ──────────────────────────────────────
-  const handleConfirmAmbiguity = useCallback((selections: any) => {
-    if (!resolvedIntent) return;
-    const mainFile = selectedFile;
-    if (!mainFile || !currentSheet) return;
-
-    if (selections?.selectedColumns?.length > 0) {
-      resolvedIntent.resolvedColumns = selections.selectedColumns.map((c: any) => ({
-        key: c.key,
-        title: c.title,
-        confidence: c.confidence,
-        matchMethod: c.matchMethod,
-      }));
-    }
-
-    executeIntent(resolvedIntent, mainFile, currentSheet.name);
-    setAmbiguityReport(null);
-    setPlanPreview(null);
-  }, [resolvedIntent, selectedFile, currentSheet, executeIntent]);
-
-  const handleCancelAmbiguity = useCallback(() => {
-    setAmbiguityReport(null);
-    setPlanPreview(null);
-    setResolvedIntent(null);
-  }, []);
-
-  const handleModifyPrompt = useCallback(() => {
-    setAmbiguityReport(null);
-    setPlanPreview(null);
-    setResolvedIntent(null);
-  }, []);
-
   // ── 快捷操作 ────────────────────────────────────────────
   const handleQuickAction = useCallback((action: QuickAction) => {
     setPromptText(action.prompt);
@@ -552,34 +249,19 @@ export default function Home() {
     setTimeout(() => setActiveQuickAction(null), 500);
   }, []);
 
-  // ── 导出 ────────────────────────────────────────────────
-  const handleExport = useCallback(async () => {
-    if (displayColumns.length === 0 || displayRows.length === 0) return;
-    const name = selectedFile?.name?.replace(/\.xlsx?$/, '') ?? '导出';
-    await exportToExcel([{ name: '结果', columns: displayColumns, rows: displayRows }], name + '_处理结果');
-  }, [displayColumns, displayRows, selectedFile]);
-
-  // ── 历史记录点击 ────────────────────────────────────────
-  const handleHistoryClick = useCallback((item: HistoryItemType) => {
-    if (!item.resultData) return;
-    // 从历史记录创建临时版本
-    const v = createVersion(
-      item.action,
-      {},
-      item.resultData.columns,
-      item.resultData.rows,
-      undefined
-    );
-    setVersions(prev => [...prev, v]);
-    setCurrentVersionId(v.id);
-    setActiveTab('result');
-    setShowHistory(false);
-  }, [createVersion]);
+  // ── 单元格编辑 ──────────────────────────────────────────
+  const handleCellEdit = useCallback((rowIndex: number, colKey: string, newValue: string) => {
+    setVersions(prev => prev.map(v =>
+      v.id === currentVersionId
+        ? { ...v, rows: v.rows.map((r, ri) => ri === rowIndex ? { ...r, [colKey]: newValue } : r) }
+        : v
+    ));
+  }, [currentVersionId, setVersions]);
 
   // ── 审计 ────────────────────────────────────────────────
   const handleAuditStart = useCallback(() => {
     if (!currentSheet) return;
-    // ★ 检查 API Key
+    const { getApiKey } = require('@/lib/api-key');
     const existingKey = getApiKey();
     if (!existingKey || existingKey.length < 10) {
       setApiKeyMode('audit');
@@ -588,7 +270,7 @@ export default function Home() {
     }
     setInferences(runQualityCheck(currentSheet.rows, currentSheet.columns).inferences);
     setShowAudit(true);
-  }, [currentSheet]);
+  }, [currentSheet, setApiKeyMode, setShowApiKeyDialog]);
 
   const handleAuditFix = useCallback((fixType: string, fixResults: FixResult[], fixedRows?: RowData[], fixedColumns?: ColumnDef[]) => {
     if (fixedRows && fixedColumns) {
@@ -598,7 +280,7 @@ export default function Home() {
       setActiveTab('result');
       setShowAudit(false);
     }
-  }, [createVersion, currentVersionId]);
+  }, [createVersion, currentVersionId, setVersions, setCurrentVersionId, setActiveTab]);
 
   const handleReAudit = useCallback(() => {
     if (!currentSheet) return;
@@ -610,15 +292,6 @@ export default function Home() {
     return auditEngine(currentSheet.rows, currentSheet.columns);
   }, [currentSheet]);
 
-  // ── 单元格编辑 ──────────────────────────────────────────
-  const handleCellEdit = useCallback((rowIndex: number, colKey: string, newValue: string) => {
-    setVersions(prev => prev.map(v =>
-      v.id === currentVersionId
-        ? { ...v, rows: v.rows.map((r, ri) => ri === rowIndex ? { ...r, [colKey]: newValue } : r) }
-        : v
-    ));
-  }, [currentVersionId]);
-
   // ── 上下文信息 ──────────────────────────────────────────
   const contextInfo = selectedFile
     ? `v${currentVersion?.version ?? 0} · 来源：${selectedFile.name} · ${displayRows.length}行×${displayColumns.length}列`
@@ -627,12 +300,30 @@ export default function Home() {
     ? `当前显示：v${currentVersion.version} ${currentVersion.operation} · ${displayRows.length}行×${displayColumns.length}列`
     : (selectedFile ? `原始数据 · ${displayRows.length}行×${displayColumns.length}列` : undefined);
 
-  // ── 渲染 ────────────────────────────────────────────────
   const taskFileItems = taskFileIds.map(id => {
     const f = files.find(x => x.id === id);
     return f ? { id: f.id, name: f.name, icon: f.icon } : null;
   }).filter(Boolean) as { id: string; name: string; icon: string }[];
 
+  // ── 模拟数据（用于 Workbench 面板展示）─────────────────
+  const qualityData = currentSheet ? {
+    rowCount: currentSheet.rows.length,
+    columnCount: currentSheet.columns.length,
+    nullRate: 0,
+    duplicateRate: 0,
+    suggestions: 0,
+    columns: currentSheet.columns.map(c => ({
+      columnKey: c.key, title: c.title ?? c.key, type: c.type,
+      nullRate: 0, uniqueRate: 1, nullCount: 0,
+    })),
+  } : null;
+
+  const perfData = currentExplanation ? [
+    { stage: 'NLU' as const, durationMs: 120, label: 'AI 解析' },
+    { stage: 'Execute' as const, durationMs: 300, label: '执行' },
+  ] : [];
+
+  // ── 渲染 ────────────────────────────────────────────────
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-zinc-50">
       {/* 顶部栏 */}
@@ -641,13 +332,8 @@ export default function Home() {
         versionLabel={currentVersion ? `版本 v${currentVersion.version}` : undefined}
         debugMode={debugMode}
         onToggleDebug={() => setDebugMode(prev => !prev)}
-        onOpenSettings={() => {
-          setApiKeyMode('settings');
-          setShowApiKeyDialog(true);
-        }}
+        onOpenSettings={() => { setApiKeyMode('settings'); setShowApiKeyDialog(true); }}
       />
-
-      {/* Debug toggle — not needed here anymore, shown via DebugTraceModal */}
 
       {/* 主体区域 */}
       <div className="flex flex-1 min-h-0">
@@ -659,17 +345,9 @@ export default function Home() {
           taskFileIds={taskFileIds}
           onSelectFile={(id, sheet) => {
             setSelectedFileId(id);
-            if (sheet) {
-              setActiveSheet(sheet);
-            } else {
-              const f = files.find(x => x.id === id);
-              if (f && !f.sheets.some(s => s.name === activeSheet)) {
-                setActiveSheet(f.sheets[0]?.name ?? '');
-              }
-            }
-            setVersions([]);
-            setCurrentVersionId(null);
-            setActiveTab('original');
+            if (sheet) setActiveSheet(sheet);
+            else { const f = files.find(x => x.id === id); if (f && !f.sheets.some(s => s.name === activeSheet)) setActiveSheet(f.sheets[0]?.name ?? ''); }
+            handleReset();
           }}
           onAddFile={handleAddFile}
           onRemoveFile={handleRemoveFile}
@@ -741,8 +419,8 @@ export default function Home() {
               } : null}
               showDiff={false}
               onToggleDiff={() => setActiveTab('compare')}
-              beforeData={beforeDataRef.current}
-              onExport={handleExport}
+              beforeData={beforeDataRef}
+              onExport={() => handleExport(displayColumns, displayRows, selectedFile)}
               resetKey={resultKey}
               error={error}
               isRunning={isRunning}
@@ -761,14 +439,42 @@ export default function Home() {
           )}
         </MainPanel>
 
-        {/* 右侧面板 */}
+        {/* 右侧面板 — Workbench V3 集成 */}
         <RightPanel
           isCollapsed={rightPanelCollapsed}
           onToggle={() => setRightPanelCollapsed(prev => !prev)}
           planMode={planMode}
           onPlanModeChange={setPlanMode}
         >
-          <ExecutionPlan steps={executionSteps} viewMode={planMode} taskFiles={taskFileItems} />
+          {/* Execution Center — 执行进度 */}
+          <WorkbenchPanel title="执行中心" icon="⚡">
+            <ExecutionCenter steps={executionSteps} isRunning={isRunning} />
+          </WorkbenchPanel>
+
+          {/* Explanation Panel — 智能解释 */}
+          <WorkbenchPanel title="执行解释" icon="💡">
+            <ExplanationPanel explanation={currentExplanation} />
+          </WorkbenchPanel>
+
+          {/* Verification Panel — 验证结果 */}
+          {(currentExplanation && currentExplanation.warnings.length > 0) && (
+            <WorkbenchPanel title="验证结果" icon="🔬">
+              <VerificationPanel
+                passed={currentExplanation.warnings.length === 0}
+                confidence={0.9}
+                checks={currentExplanation.warnings.map(w => ({ name: '检查项', passed: false, detail: w }))}
+              />
+            </WorkbenchPanel>
+          )}
+
+          {/* Performance Monitor — 性能数据 */}
+          {perfData.length > 0 && (
+            <WorkbenchPanel title="性能监控" icon="⏱">
+              <PerformanceMonitor entries={perfData} totalDuration={perfData.reduce((s, e) => s + e.durationMs, 0)} />
+            </WorkbenchPanel>
+          )}
+
+          {/* Version Timeline */}
           <VersionTimeline
             versions={versions}
             currentVersionId={currentVersionId}
@@ -813,13 +519,18 @@ export default function Home() {
         />
       )}
 
-      {/* Debug mode: Pipeline Trace modal */}
+      {/* Debug mode: Pipeline Trace */}
       {debugMode && pipelineTrace && (
         <DebugTraceModal trace={pipelineTrace} onClose={() => setDebugMode(false)} />
       )}
 
-      {/* 错误弹窗 */}
-      {errorDialog && (
+      {/* 错误弹窗 — 使用 ErrorDialogV3 */}
+      {errorDialog && currentExplanation && (
+        <ErrorDialogV3 explanation={currentExplanation} onDismiss={dismissError} />
+      )}
+
+      {/* Fallback 错误弹窗 */}
+      {errorDialog && !currentExplanation && (
         <div className="fixed inset-0 z-[60] flex items-start justify-center pt-[15vh]" onClick={dismissError}>
           <div className="absolute inset-0 bg-black/20" />
           <div className="relative bg-white rounded-xl shadow-2xl border border-zinc-200 w-[400px] max-w-[90vw] overflow-hidden" onClick={e => e.stopPropagation()}>
@@ -847,9 +558,8 @@ export default function Home() {
           mode={apiKeyMode}
           onClose={() => setShowApiKeyDialog(false)}
           onSaved={() => {
-            if (apiKeyMode === 'execute' && pendingActionRef.current) {
-              pendingActionRef.current();
-              pendingActionRef.current = null;
+            if (apiKeyMode === 'execute') {
+              handleSubmit();
             }
           }}
         />

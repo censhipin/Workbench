@@ -9,6 +9,7 @@ export type PipelineStepStage =
   | 'parse'       // 自然语言理解
   | 'resolve'     // Schema Resolver（列映射）
   | 'compile'     // TaskCompiler（TaskPlan → ExecutionPlan）
+  | 'repair'      // EIC Repair（自动修复）
   | 'execute'     // Execution Engine
   | 'verify';     // Result Verification
 

@@ -303,6 +303,7 @@ function matchTwoMulti(
   const columns: ColumnDef[] = [...main.columns, ...lkCols.map((c) => ({ ...c, key: '_lkp_' + c.key }))];
   let matched = 0;
 
+
   const mergedRows = main.rows.map((row) => {
     const ck = compositeKey(row, matchKeys);
     let lkRow = ck ? normMap.get(ck) : undefined;
@@ -311,18 +312,7 @@ function matchTwoMulti(
     if (lkRow) matched++;
     return newRow;
   });
-  // Append unmatched lookup rows with _matchStatus
-  var seen = new Set();
-  for (var _r of main.rows) { var ck = compositeKey(_r, matchKeys); if (ck) seen.add(ck); }
-  for (var _r2 of lookup.rows) {
-    var ck2 = compositeKey(_r2, matchKeys);
-    if (!ck2 || seen.has(ck2)) continue;
-    seen.add(ck2);
-    var nr: Record<string, string | number | null> = {};
-    for (var _c of main.columns) nr[_c.key] = _r2[_c.key] || null;
-    for (var _lc of lkCols) nr['_lkp_' + _lc.key] = _r2[_lc.key] || null;
-    mergedRows.push(nr);
-  }
+  // Append unmatched lookup rows with _matchStatus — REMOVED: Left Join should not add unmatched right rows
   return { columns, rows: mergedRows, matched, unmatched: main.rows.length - matched };
 }
 
@@ -347,6 +337,8 @@ function matchTwo(
   const lkCols = lookup.columns.filter((c) => c.key !== matchKey);
   const columns: ColumnDef[] = [...main.columns, ...lkCols.map((c) => ({ ...c, key: '_lkp_' + c.key }))];
   let matched = 0;
+  const fuzzyCandidates = [...new Set(lookup.rows.map((r) => String(r[matchKey] ?? "").trim()).filter(Boolean))];
+
 
   // 涓昏〃琛岋細绮剧‘鍖归厤 鈫?妯＄硦鍥為€€
   const mergedRows = main.rows.map((row) => {
@@ -355,7 +347,7 @@ function matchTwo(
     let lkRow = nk ? normMap.get(nk) : undefined;
     // 绮剧‘鏈懡涓?鈫?妯＄硦鏌ユ壘
     if (!lkRow && nk) {
-      const fuzzyMatch = fuzzyFind(raw, [...new Set(lookup.rows.map((r) => String(r[matchKey] ?? '').trim()).filter(Boolean))]);
+      const fuzzyMatch = fuzzyFind(raw, fuzzyCandidates);
       if (fuzzyMatch) lkRow = normMap.get(normalizeStr(fuzzyMatch));
     }
     const newRow: RowData = { ...row };
@@ -364,25 +356,10 @@ function matchTwo(
     return newRow;
   });
 
-
-  // Append unmatched lookup rows
-  var seenRaw = new Set();
-  for (var _r of main.rows) { var nk = normalizeStr(String(_r[matchKey] || '').trim()); if (nk) seenRaw.add(nk); }
-  for (var _r2 of lookup.rows) {
-    var raw = String(_r2[matchKey] || '').trim();
-    if (!raw) continue;
-    var nk = normalizeStr(raw);
-    if (nk && seenRaw.has(nk)) continue;
-    if (nk) seenRaw.add(nk);
-    var nr: Record<string, string | number | null> = {};
-    for (var _c of main.columns) nr[_c.key] = _r2[_c.key] || null;
-    for (var _lc of lkCols) nr['_lkp_' + _lc.key] = _r2[_lc.key] || null;
-    mergedRows.push(nr);
-  }
   return { columns, rows: mergedRows, matched, unmatched: main.rows.length - matched };
 }
 
-// ---- 澶氳〃鍖归厤锛堣嚜鍔ㄩ€夋嫨鍗曞垪鎴栧鍒楋級 ----
+// ---- 多表匹配（自动选择单列或多列） ----
 export function matchMultiTables(
   tables: { columns: ColumnDef[]; rows: RowData[]; name: string }[]
 ): { columns: ColumnDef[]; rows: RowData[]; summary: ResultSummary } {

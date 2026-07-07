@@ -20,13 +20,15 @@
 # production
 /build
 
+# electron release builds (not docs release)
+/release
+
 # misc
 .DS_Store
 *.pem
 
 # electron
 dist/
-release/
 *.exe
 
 # debug
@@ -40,6 +42,10 @@ yarn-error.log*
 
 # vercel
 .vercel
+
+# generated test data (large, deterministic, can be regenerated)
+lib/__tests__/perf-data/
+lib/__tests__/real-data/
 
 # typescript
 *.tsbuildinfo

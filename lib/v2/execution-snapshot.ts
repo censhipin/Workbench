@@ -13,13 +13,12 @@ export interface ExecutionSnapshot {
 
 /**
  * 对执行数据做深拷贝快照
- * JSON.parse/stringify 是最可靠的 deep clone 方式
+ * structuredClone 是原生 API，比 JSON.parse/stringify 快 2-5x
  * 适用于纯 JSON 数据（无 Date/Map/Set/Function）
- * 特殊处理：JSON 无法保留 Infinity，手动恢复
+ * 特殊处理：structuredClone 能保留 Infinity，无需手动恢复
  */
 export function createSnapshot(columns: ColumnDef[], rows: RowData[]): ExecutionSnapshot {
-  const raw = JSON.parse(JSON.stringify({ columns, rows }));
-  return restoreSpecialValues(raw, rows);
+  return structuredClone({ columns, rows });
 }
 
 /**
@@ -27,28 +26,5 @@ export function createSnapshot(columns: ColumnDef[], rows: RowData[]): Execution
  * 确保 output dataset 完全不引用 input dataset
  */
 export function cloneResult<T>(data: T): T {
-  const raw = JSON.parse(JSON.stringify(data));
-  return restoreSpecialValues(raw, data);
-}
-
-/** 恢复 JSON.parse 丢失的特殊值（Infinity, -Infinity） */
-function restoreSpecialValues<T>(cloned: T, original: T): T {
-  if (Array.isArray(cloned) && Array.isArray(original)) {
-    for (let i = 0; i < Math.min(cloned.length, original.length); i++) {
-      if (typeof original[i] === 'object' && original[i] !== null && typeof cloned[i] === 'object' && cloned[i] !== null) {
-        cloned[i] = restoreSpecialValues(cloned[i], original[i]);
-      }
-    }
-  } else if (typeof cloned === 'object' && cloned !== null && typeof original === 'object' && original !== null) {
-    for (const key of Object.keys(cloned as object)) {
-      const ov = (original as any)[key];
-      const cv = (cloned as any)[key];
-      if (ov === Infinity || ov === -Infinity) {
-        (cloned as any)[key] = ov;
-      } else if (typeof ov === 'object' && ov !== null && typeof cv === 'object' && cv !== null) {
-        (cloned as any)[key] = restoreSpecialValues(cv, ov);
-      }
-    }
-  }
-  return cloned;
+  return structuredClone(data);
 }

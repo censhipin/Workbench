@@ -26,6 +26,7 @@ import { FormulaExecutor } from './executors/FormulaExecutor';
 import { PipelineExecutor } from './executors/PipelineExecutor';
 import { validatePlan } from './plan-validator';
 import { createSnapshot, cloneResult } from './execution-snapshot';
+import type { DataProfile } from '../v3/profile/types';
 
 /** 全局单例 registry */
 export const registry = new ExecutorRegistry();
@@ -60,11 +61,12 @@ registerAllVerifiers();
 export function runExecutionPlan(
   plan: ExecutionPlan,
   mainSheet: { columns: ColumnDef[]; rows: RowData[] },
-  taskSheets?: { columns: ColumnDef[]; rows: RowData[]; name: string }[]
+  taskSheets?: { columns: ColumnDef[]; rows: RowData[]; name: string }[],
+  profile?: DataProfile,
 ): ExecutionResult {
   try {
     // Step 1: 校验 plan（纯函数，返回已标准化的副本，不修改输入）
-    const validation = validatePlan(plan, mainSheet.columns);
+    const validation = validatePlan(plan, mainSheet.columns, profile);
     if (!validation.valid) {
       return {
         success: false,

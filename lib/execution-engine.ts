@@ -22,6 +22,12 @@ import { runExecutionPlan } from './v2/execution-engine';
 import {
   addTraceStep, setTraceExecution, setTraceVerification, finishTrace, getCurrentTrace
 } from './pipeline-trace';
+import { buildDataProfile } from './v3/profile';
+import { repairPlan, buildColumnValueIndex } from './v3/repair/repair-engine';
+import type { RepairReport } from './v3/repair/repair-types';
+import { buildExecutionExplanation } from './v3/explain';
+import type { ExecutionExplanation } from './v3/explain';
+import { verifyExecution } from './v3/verification/verification-engine';
 
 // ============================================================
 // 类型定义（保持导出兼容）
@@ -69,6 +75,12 @@ export interface EngineRunResult {
   verification: VerificationReport | null;
   intent: import('./types').TaskIntent | null;
   error?: string;
+  /** EIC Repair 报告（Phase 5+） */
+  repairReport?: RepairReport;
+  /** 修复后的 ExecutionPlan */
+  repairedPlan?: import('./v2/execution-plan').ExecutionPlan | null;
+  /** Explain 层输出（Phase 6+） */
+  explanation?: ExecutionExplanation;
 }
 
 // ============================================================
@@ -106,6 +118,7 @@ export class PlanStepBuilder {
     validation: ValidationResult,
     execution: ExecutionResult | null,
     verification: VerificationReport | null,
+    repairReport?: RepairReport,
   ): PlanStep[] {
     const steps: PlanStep[] = [];
     const targetCols = intent ? (intent.resolvedColumns ?? intent.targetColumns) : [];
@@ -176,9 +189,41 @@ export class PlanStepBuilder {
       if (step4Status === 'failed') failures.push('结果验证失败');
       step5Subs.push({ label: '失败原因', value: failures.join('、') });
     }
+
+    // === Repair 报告注入 ===
+    if (repairReport && repairReport.repairs.length > 0) {
+      const autoRepairs = repairReport.repairs.filter((r) => r.category === 'auto');
+      const suggestRepairs = repairReport.repairs.filter((r) => r.category === 'suggest');
+
+      // 自动修复 → Step-2（验证输入参数）
+      if (autoRepairs.length > 0 && steps[1] && steps[1].subItems) {
+        steps[1].subItems.push({
+          label: '自动修复',
+          value: `${autoRepairs.length} 项已自动修复（${repairReport.summary}）`,
+        });
+      }
+
+      // 建议修复 → Step-6（智能解释）
+      if (suggestRepairs.length > 0 && steps[5] && steps[5].subItems) {
+        steps[5].subItems.push({
+          label: '修复建议',
+          value: suggestRepairs.map((r) => r.detail).join('；'),
+        });
+      }
+    }
+
     steps.push({
       id: 'step-5', order: 5, status: overallSuccess ? 'completed' as StepStatus : 'failed' as StepStatus,
       isDangerous: false, description: '生成结果报告', subItems: step5Subs,
+    });
+
+    // Step-6: 智能解释（Phase 6）
+    steps.push({
+      id: 'step-6', order: 6, status: 'completed' as StepStatus,
+      isDangerous: false, description: '智能解释',
+      subItems: overallSuccess
+        ? [{ label: '执行说明', value: '系统已生成执行过程详细说明，请在结果面板查看' }]
+        : [{ label: '失败说明', value: '系统已分析失败原因，请在错误详情中查看' }],
     });
 
     return steps;
@@ -222,19 +267,47 @@ export function runExecutionEngine(
     issues.push({ severity: 'error', field: 'sheet', message: '请先在左侧选择一个文件', code: 'SHEET_NOT_FOUND' });
   }
 
+  // ★ EIC DataProfile: 在任何执行前生成数据画像
+  const dataProfile = currentSheet && currentSheet.rows.length > 0
+    ? buildDataProfile(currentSheet.columns, currentSheet.rows)
+    : null;
+
+  const columnIndex = dataProfile && currentSheet
+    ? buildColumnValueIndex(currentSheet.columns, currentSheet.rows)
+    : [];
+
   const validation: ValidationResult = { valid: issues.length === 0, issues };
 
-  // === V2 执行（唯一路径） ===
+  // ★ EIC Repair: 对计划执行自动修复（修复列引用、类型转换等）
+  let repairedPlan = (validation.valid && intent?.v2plan) ? intent.v2plan : null;
+  let repairReport: RepairReport | undefined;
+
+  if (repairedPlan && dataProfile && currentSheet && validation.valid) {
+    const repairResult = repairPlan(repairedPlan, {
+      columns: currentSheet.columns,
+      rows: currentSheet.rows,
+      profile: dataProfile,
+      columnIndex,
+    });
+    repairedPlan = repairResult.plan;
+    repairReport = repairResult.report;
+
+    if (repairResult.autoFixApplied) {
+      addTraceStep('repair', 'ok', repairResult.report.summary);
+    }
+  }
+
+  // === V2 执行（使用修复后的 plan） ===
   let executionResult: ExecutionResult | null = null;
 
-  if (validation.valid && intent && intent.v2plan && currentSheet) {
+  if (validation.valid && intent && repairedPlan && currentSheet) {
     const taskSheets = taskFiles
       .filter((f) => f.sheets[0])
       .map((f) => ({ columns: f.sheets[0].columns, rows: f.sheets[0].rows, name: f.name }));
     const rowsBefore = currentSheet.rows.length ?? 0;
 
-    addTraceStep('execute', 'ok', `V2 引擎执行: ${intent.v2plan.type}`);
-    executionResult = runExecutionPlan(intent.v2plan, currentSheet, taskSheets);
+    addTraceStep('execute', 'ok', `V2 引擎执行: ${repairedPlan.type}`);
+    executionResult = runExecutionPlan(repairedPlan, currentSheet, taskSheets, dataProfile ?? undefined);
     setTraceExecution(
       'V2', executionResult.success, executionResult.error, rowsBefore,
       executionResult.success && executionResult.data ? executionResult.data.rows.length : undefined,
@@ -243,16 +316,35 @@ export function runExecutionEngine(
     addTraceStep('execute', 'failed', issues.map((i) => i.message).join('; '));
   }
 
-  // === 验证报告（取自 V2 结果） ===
+  // === 验证报告（组合 V2 结果 + V3 Verification） ===
   let verification: VerificationReport | null = null;
 
-  if (executionResult?.success) {
-    verification = {
+  if (executionResult?.success && executionResult.data) {
+    // V3 Verification: 使用 9 个 Verifier 对执行结果进行详细验证
+    let v3Result = null;
+    if (repairedPlan) {
+      try {
+        v3Result = verifyExecution(
+          repairedPlan,
+          currentSheet?.columns ?? [],
+          currentSheet?.rows ?? [],
+          executionResult.data.columns,
+          executionResult.data.rows,
+        );
+      } catch {
+        // V3 验证失败不阻断流程，降级为仅使用 V2 验证
+      }
+    }
+
+    verification = v3Result ? {
+      passed: v3Result.passed,
+      checks: v3Result.checks.map(c => ({ name: c.name, passed: c.passed, detail: c.detail })),
+    } : {
       passed: true,
       checks: [{ name: 'V2 结果验证', passed: true, detail: 'V2 执行引擎已完成结果验证' }],
     };
-    addTraceStep('verify', 'ok', 'V2 验证通过');
-    setTraceVerification(true, verification.checks);
+    addTraceStep('verify', 'ok', `V3 验证${v3Result && v3Result.passed ? '通过' : '警告'}`);
+    setTraceVerification(verification.passed, verification.checks);
   } else if (executionResult && !executionResult.success) {
     verification = {
       passed: false,
@@ -263,13 +355,26 @@ export function runExecutionEngine(
   }
 
   // === UI 展示用 5 步执行计划 ===
-  const steps = PlanStepBuilder.build(intent, validation, executionResult, verification);
+  const steps = PlanStepBuilder.build(intent, validation, executionResult, verification ?? null, repairReport);
 
   // === 总体结果 ===
   const overallSuccess = Boolean(intent?.v2plan && validation.valid && executionResult?.success);
   const error = !overallSuccess
     ? buildErrorMessage(intent, validation, executionResult, verification)
     : undefined;
+
+  // === Explain 层：生成人类可读解释（必须放在 error 定义之后） ===
+  const explanation = buildExecutionExplanation({
+    plan: repairedPlan,
+    profile: dataProfile,
+    repairReport,
+    executionResult,
+    verificationReport: verification,
+    error,
+    operationLabel: operationLabel(intent?.operation ?? null),
+    groupBy: (intent as any)?.groupBy,
+    aggregation: (intent as any)?.aggregation,
+  });
 
   finishTrace();
 
@@ -281,6 +386,9 @@ export function runExecutionEngine(
     verification,
     intent,
     error,
+    repairReport,
+    repairedPlan,
+    explanation,
   };
 }
 
@@ -289,6 +397,7 @@ function buildErrorMessage(
   validation: ValidationResult,
   execution: ExecutionResult | null,
   verification: VerificationReport | null,
+  repairReport?: RepairReport,
 ): string {
   if (!intent || !intent.operation) return '无法识别操作类型';
   if (!validation.valid) {
@@ -309,6 +418,16 @@ function buildErrorMessage(
     }
     return errMsg;
   }
-  if (verification && !verification.passed) return verification.checks.filter((c) => !c.passed).map((c) => c.detail).join('；');
-  return '执行未完成';
+  if (verification && !verification.passed) {
+    const msg = verification.checks.filter((c) => !c.passed).map((c) => c.detail).join('；');
+    return appendRepairSummary(msg, repairReport);
+  }
+  return appendRepairSummary('执行未完成', repairReport);
+}
+
+function appendRepairSummary(msg: string, repairReport?: RepairReport): string {
+  if (repairReport && repairReport.successCount > 0) {
+    return `${msg}（已自动修复 ${repairReport.successCount} 项）`;
+  }
+  return msg;
 }

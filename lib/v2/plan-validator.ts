@@ -5,6 +5,7 @@
 // - 操作符合法性
 // - 值类型标准化（返回新的 normalizedPlan，不修改输入）
 // - 多条件结构验证
+// - 数据感知校验（需 DataProfile）
 //
 // ★ 纯函数：不修改输入 plan，返回新的 normalizedPlan
 // ============================================================
@@ -13,6 +14,7 @@ import { Operator } from './types';
 import type { ConditionExpr } from './types';
 import type { ExecutionPlan, FilterPlan, SortPlan, AggregatePlan, DedupPlan, MatchPlan, MergePlan, CleanPlan, ProjectionPlan, UpdatePlan, FormulaPlan, PipelinePlan } from './execution-plan';
 import type { ColumnDef } from '../types';
+import type { DataProfile } from '../v3/profile/types';
 
 export interface ValidationIssue {
   field: string;
@@ -43,8 +45,38 @@ function resolveCol(hint: string, columns: ColumnDef[]): ColumnDef | null {
 /**
  * 校验并修正 ExecutionPlan
  * 纯函数：不修改输入 plan，返回 validated plan（含修正后的副本）
+ *
+ * 可传入可选的 DataProfile 以启用数据感知校验：
+ *   - 空值检测（filter 列空值过多 → 警告）
+ *   - 匹配键质量检测（join key 重复率高 → 警告）
+ *   - 聚合类型检测（非数值列聚合 → 错误）
+ *   - 去重影响预估（去重将删除大量行 → 警告）
  */
-export function validatePlan(plan: ExecutionPlan, columns: ColumnDef[]): PlanValidationResult {
+export function validatePlan(plan: ExecutionPlan, columns: ColumnDef[], profile?: DataProfile): PlanValidationResult {
+  const issues: ValidationIssue[] = [];
+
+  // === 多阶段校验 ===
+  // Phase 1: 原始合法性校验（原有逻辑）
+  const baseResult = validatePlanBase(plan, columns);
+  issues.push(...baseResult.issues);
+
+  // Phase 2: 数据感知校验（profile 存在时）
+  if (profile) {
+    const profileIssues = validateWithProfile(plan, profile, columns);
+    issues.push(...profileIssues);
+  }
+
+  return {
+    valid: issues.filter((i) => i.severity === 'error').length === 0,
+    plan: baseResult.plan,
+    issues,
+  };
+}
+
+/**
+ * Phase 1: 原始合法性校验（原有逻辑，提取为独立函数）
+ */
+function validatePlanBase(plan: ExecutionPlan, columns: ColumnDef[]): PlanValidationResult {
   const issues: ValidationIssue[] = [];
 
   switch (plan.type) {
@@ -289,4 +321,222 @@ function validatePipelinePlan(plan: PipelinePlan, columns: ColumnDef[], issues: 
     plan: { ...plan, steps: normalizedSteps },
     issues,
   };
+}
+
+// ============================================================
+// Phase 2: 数据感知校验（需 DataProfile）
+// ============================================================
+
+function validateWithProfile(
+  plan: ExecutionPlan,
+  profile: DataProfile,
+  columns: ColumnDef[],
+): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+
+  switch (plan.type) {
+    case 'filter':
+      return profileValidateFilter(plan, profile, issues);
+    case 'aggregate':
+      return profileValidateAggregate(plan, profile, issues);
+    case 'match':
+      return profileValidateMatch(plan, profile, issues);
+    case 'dedup':
+      return profileValidateDedup(plan, profile, issues);
+    case 'formula':
+      return profileValidateFormula(plan, profile, issues);
+    case 'pipeline':
+      return profileValidatePipeline(plan, profile, columns, issues);
+    default:
+      return issues;
+  }
+}
+
+/** 筛选操作的 profile 检测 */
+function profileValidateFilter(
+  plan: FilterPlan,
+  profile: DataProfile,
+  issues: ValidationIssue[],
+): ValidationIssue[] {
+  for (const cond of plan.conditions) {
+    const colProfile = profile.columns.find((c) => c.columnKey === cond.columnKey);
+    if (!colProfile) continue;
+
+    // 空值过多 → 可能导致 0 结果
+    if (colProfile.nullRate > 0.5) {
+      issues.push({
+        field: `conditions.${cond.columnKey}`,
+        message: `"${colProfile.title}" 列空值率 ${(colProfile.nullRate * 100).toFixed(0)}%，筛选后可能返回空结果`,
+        severity: 'warning',
+      });
+    }
+
+    // 类型不匹配：数字列做文本匹配
+    if (colProfile.type === 'number' && ['CONTAINS', 'STARTS_WITH', 'ENDS_WITH'].includes(cond.operator)) {
+      issues.push({
+        field: `conditions.${cond.columnKey}`,
+        message: `"${colProfile.title}" 是数值列，不支持 ${cond.operator} 文本匹配操作`,
+        severity: 'warning',
+      });
+    }
+  }
+  return issues;
+}
+
+/** 聚合操作的 profile 检测 */
+function profileValidateAggregate(
+  plan: AggregatePlan,
+  profile: DataProfile,
+  issues: ValidationIssue[],
+): ValidationIssue[] {
+  for (const colKey of plan.columns) {
+    const colProfile = profile.columns.find((c) => c.columnKey === colKey);
+    if (!colProfile) continue;
+
+    // 非数值列做聚合 → 错误
+    if (colProfile.type !== 'number') {
+      issues.push({
+        field: `columns.${colKey}`,
+        message: `"${colProfile.title}" 列推断类型为 ${colProfile.type}，不是数值类型，${plan.method} 聚合可能返回异常结果`,
+        severity: 'error',
+      });
+    }
+
+    // 空值过多影响聚合准确性
+    if (colProfile.nullRate > 0.1) {
+      issues.push({
+        field: `columns.${colKey}`,
+        message: `"${colProfile.title}" 列存在 ${(colProfile.nullRate * 100).toFixed(0)}% 空值，聚合结果仅基于非空行`,
+        severity: 'warning',
+      });
+    }
+  }
+
+  // groupBy 列的唯一值过多
+  if (plan.groupBy) {
+    for (const g of plan.groupBy) {
+      const colProfile = profile.columns.find((c) => c.columnKey === g);
+      if (colProfile && colProfile.uniqueRate > 0.5 && profile.rowCount > 100) {
+        issues.push({
+          field: `groupBy.${g}`,
+          message: `"${colProfile.title}" 列唯一值率 ${(colProfile.uniqueRate * 100).toFixed(0)}%，分组后结果可能非常多`,
+          severity: 'warning' as const,
+        });
+      }
+    }
+  }
+
+  return issues;
+}
+
+/** 匹配操作的 profile 检测 */
+function profileValidateMatch(
+  plan: MatchPlan,
+  profile: DataProfile,
+  issues: ValidationIssue[],
+): ValidationIssue[] {
+  for (const colKey of plan.matchColumns) {
+    const colProfile = profile.columns.find((c) => c.columnKey === colKey);
+    if (!colProfile) continue;
+
+    // 匹配键重复率过高 → 多对多爆炸
+    if (colProfile.uniqueRate < 0.2) {
+      issues.push({
+        field: `matchColumns.${colKey}`,
+        message: `"${colProfile.title}" 列唯一值率仅 ${(colProfile.uniqueRate * 100).toFixed(0)}%，作为匹配键可能导致多对多结果膨胀`,
+        severity: 'warning',
+      });
+    }
+
+    // 空值匹配键 → 匹配失败
+    if (colProfile.nullRate > 0.1) {
+      issues.push({
+        field: `matchColumns.${colKey}`,
+        message: `"${colProfile.title}" 列存在 ${(colProfile.nullRate * 100).toFixed(0)}% 空值，空值行无法参与匹配`,
+        severity: 'warning',
+      });
+    }
+  }
+  return issues;
+}
+
+/** 去重操作的 profile 检测 */
+function profileValidateDedup(
+  plan: DedupPlan,
+  profile: DataProfile,
+  issues: ValidationIssue[],
+): ValidationIssue[] {
+  const targetCols = plan.columns && plan.columns.length > 0
+    ? plan.columns
+    : profile.columns.map((c) => c.columnKey);
+
+  for (const colKey of targetCols) {
+    const colProfile = profile.columns.find((c) => c.columnKey === colKey);
+    if (!colProfile) continue;
+
+    // 空值列去重可能导致意外删除
+    if (colProfile.nullRate > 0.2) {
+      issues.push({
+        field: `columns.${colKey}`,
+        message: `"${colProfile.title}" 列空值率 ${(colProfile.nullRate * 100).toFixed(0)}%，按此列去重可能导致空值行被删除`,
+        severity: 'warning',
+      });
+    }
+  }
+
+  // 整体重复率过高
+  if (profile.globalStats.duplicateRowRate > 0.3) {
+    issues.push({
+      field: 'columns',
+      message: `数据重复行率 ${(profile.globalStats.duplicateRowRate * 100).toFixed(0)}%，去重将删除大量数据`,
+      severity: 'warning',
+    });
+  }
+
+  return issues;
+}
+
+/** 公式操作的 profile 检测 */
+function profileValidateFormula(
+  plan: FormulaPlan,
+  profile: DataProfile,
+  issues: ValidationIssue[],
+): ValidationIssue[] {
+  for (const colKey of plan.sourceColumns) {
+    const colProfile = profile.columns.find((c) => c.columnKey === colKey);
+    if (!colProfile) continue;
+
+    // 数学运算要求数值列
+    if (['SUM', 'AVG', 'ROUND', 'ABS'].includes(plan.expressionType)) {
+      if (colProfile.type !== 'number') {
+        issues.push({
+          field: `sourceColumns.${colKey}`,
+          message: `"${colProfile.title}" 列推断为 ${colProfile.type}，${plan.expressionType} 运算可能需要数值`,
+          severity: 'warning',
+        });
+      }
+    }
+  }
+  return issues;
+}
+
+/** Pipeline 的 profile 检测（递归到子步骤） */
+function profileValidatePipeline(
+  plan: PipelinePlan,
+  profile: DataProfile,
+  columns: ColumnDef[],
+  issues: ValidationIssue[],
+): ValidationIssue[] {
+  if (!plan.steps) return issues;
+  for (let i = 0; i < plan.steps.length; i++) {
+    const stepIssues = validateWithProfile(plan.steps[i], profile, columns);
+    for (const iss of stepIssues) {
+      issues.push({
+        field: `steps[${i}].${iss.field}`,
+        message: iss.message,
+        severity: iss.severity,
+      });
+    }
+  }
+  return issues;
 }
