@@ -16,7 +16,7 @@ export default function ExecutionPlan({ steps, viewMode }: ExecutionPlanProps) {
           <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
           <rect x="9" y="3" width="6" height="4" rx="1"/>
         </svg>
-        <p className="text-xs text-[#9ca3af]">暂无执行计划</p>
+        <p className="text-xs text-[#9ca3af]">暂无执行步骤</p>
       </div>
     );
   }
@@ -56,7 +56,7 @@ export default function ExecutionPlan({ steps, viewMode }: ExecutionPlanProps) {
     <div className="p-3 space-y-2">
       <div className="flex items-center gap-2 mb-3">
         <span className="text-xs font-semibold text-[#1a1a2e]">
-          {allCompleted ? '执行完成' : `执行计划 (${completedCount}/${steps.length})`}
+          {allCompleted ? '执行完成' : `执行步骤 (${completedCount}/${steps.length})`}
         </span>
         {allCompleted && (
           <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#d1fae5] text-[#059669] font-medium">✓ 完成</span>

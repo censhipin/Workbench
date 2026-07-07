@@ -166,6 +166,21 @@ export default function DataPreview(props: DataPreviewProps) {
     });
   }, []);
 
+  // ── Cell edit wrapper ──────────────────────────────────────
+  // Update local tableState for instant UI feedback, then propagate to parent
+  var handleCellEditWrapper = useCallback(function (rowIndex: number, colKey: string, newValue: string) {
+    setTableState(function (prev) {
+      if (!prev) return prev;
+      return {
+        columns: prev.columns,
+        rows: prev.rows.map(function (r, ri) {
+          return ri === rowIndex ? { ...r, [colKey]: newValue } : r;
+        })
+      };
+    });
+    if (onCellEdit) onCellEdit(rowIndex, colKey, newValue);
+  }, [onCellEdit]);
+
   // Determine what to pass to DataTable
   var displayColumns = tableState ? tableState.columns : (currentSheet ? currentSheet.columns : []);
   var displayRows = tableState ? tableState.rows : (currentSheet ? currentSheet.rows : []);
@@ -223,7 +238,7 @@ export default function DataPreview(props: DataPreviewProps) {
         resetKey: editMode + activeSheet,
         editMode: editMode,
         highlightCell: highlightCell,
-        onCellEdit: onCellEdit,
+        onCellEdit: handleCellEditWrapper,
         scrollToRow: scrollToRow,
         onRowReorder: handleRowReorder,
         onColumnReorder: handleColumnReorder,

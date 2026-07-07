@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ColumnDef, RowData, WorkbenchFile, PlanStep, HistoryItem, ResultSummary, AuditReport, FixResult, CellHighlight, EditMode, QuickAction, StepStatus, Version, DataTab, PlanViewMode } from '@/lib/types';
+import { ColumnDef, RowData, WorkbenchFile, PlanStep, HistoryItem, ResultSummary, AuditReport, FixResult, CellHighlight, EditMode, QuickAction, StepStatus, Version, DataTab } from '@/lib/types';
 import type { ExecutionExplanation } from '@/lib/v3/explain';
 import { runQualityCheck, type InferenceResult } from '@/lib/quality';
 import { runAudit as auditEngine } from '@/lib/audit-engine';
@@ -62,7 +62,6 @@ export default function Home() {
 
   // ── 右侧面板 ────────────────────────────────────────────
   const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false);
-  const [planMode, setPlanMode] = useState<PlanViewMode>('human');
 
   // ── UI ──────────────────────────────────────────────────
   const [editMode, setEditMode] = useState<EditMode>('locked');
@@ -251,12 +250,31 @@ export default function Home() {
 
   // ── 单元格编辑 ──────────────────────────────────────────
   const handleCellEdit = useCallback((rowIndex: number, colKey: string, newValue: string) => {
+    // 更新底层文件 Sheet 数据，确保切换 Tab / Sheet / 刷新后仍保持
+    setFiles(prev => {
+      const newFiles = prev.map(f =>
+        f.id === selectedFileId
+          ? {
+              ...f,
+              sheets: f.sheets.map(s =>
+                s.name === activeSheet
+                  ? { ...s, rows: s.rows.map((r, ri) => ri === rowIndex ? { ...r, [colKey]: newValue } : r) }
+                  : s
+              )
+            }
+          : f
+      );
+      const updated = newFiles.find(f => f.id === selectedFileId);
+      if (updated) { import('@/lib/db').then(({ saveFile }) => saveFile(updated).catch(() => {})); }
+      return newFiles;
+    });
+    // 同时更新当前 Version（如果有）使结果 Tab 也能看到编辑
     setVersions(prev => prev.map(v =>
       v.id === currentVersionId
         ? { ...v, rows: v.rows.map((r, ri) => ri === rowIndex ? { ...r, [colKey]: newValue } : r) }
         : v
     ));
-  }, [currentVersionId, setVersions]);
+  }, [selectedFileId, activeSheet, currentVersionId, setVersions]);
 
   // ── 审计 ────────────────────────────────────────────────
   const handleAuditStart = useCallback(() => {
@@ -443,8 +461,6 @@ export default function Home() {
         <RightPanel
           isCollapsed={rightPanelCollapsed}
           onToggle={() => setRightPanelCollapsed(prev => !prev)}
-          planMode={planMode}
-          onPlanModeChange={setPlanMode}
         >
           {/* Execution Center — 执行进度 */}
           <WorkbenchPanel title="执行中心" icon="⚡">

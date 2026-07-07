@@ -20,6 +20,7 @@ interface DataTableProps {
   onAddRow?: () => void;
   onRemoveColumn?: (columnKey: string) => void;
   onRemoveRow?: (rowIndex: number) => void;
+  resizable?: boolean;
 }
 
 function formatCell(value: string | number | null) {
@@ -40,7 +41,7 @@ var BUFFER = 10;
 var ADD_COL_W = 36;
 var HEADER_H = 46;
 
-export default function DataTable({ columns, rows, maxHeight = '500px', highlightRow, onRowClick, resetKey, editMode, highlightCell, onCellEdit, scrollToRow, onRowReorder, onColumnReorder, onAddColumn, onAddRow, onRemoveColumn, onRemoveRow }: DataTableProps) {
+export default function DataTable({ columns, rows, maxHeight = '500px', highlightRow, onRowClick, resetKey, editMode, highlightCell, onCellEdit, scrollToRow, onRowReorder, onColumnReorder, onAddColumn, onAddRow, onRemoveColumn, onRemoveRow, resizable }: DataTableProps) {
   var scrollRef = useRef<HTMLDivElement>(null);
   var [scrollY, setScrollY] = useState(0);
   var [vh, setVh] = useState(500);
@@ -52,6 +53,9 @@ export default function DataTable({ columns, rows, maxHeight = '500px', highligh
   // Delete confirmation state
   var [pendingDeleteCol, setPendingDeleteCol] = useState<string | null>(null);
   var [pendingDeleteRow, setPendingDeleteRow] = useState<number | null>(null);
+  // Column resize state
+  var [colWidths, setColWidths] = useState<Record<string, number>>({});
+  var resizingRef = useRef<{ colKey: string; startX: number; startW: number } | null>(null);
 
   useEffect(function () {
     var el = scrollRef.current;
@@ -207,6 +211,36 @@ export default function DataTable({ columns, rows, maxHeight = '500px', highligh
     }
   }, []);
 
+  // ─── Column resize handlers ──────────────────────────────────────────────
+  var handleColResizeStart = useCallback(function (e: React.MouseEvent, colKey: string) {
+    if (!resizable) return;
+    e.preventDefault();
+    e.stopPropagation();
+    var th = (e.currentTarget as HTMLElement).closest('th');
+    var startW = th ? th.offsetWidth : 80;
+    resizingRef.current = { colKey: colKey, startX: e.clientX, startW: startW };
+
+    var onMouseMove = function (ev: MouseEvent) {
+      if (!resizingRef.current) return;
+      var diff = ev.clientX - resizingRef.current.startX;
+      var newW = Math.max(40, resizingRef.current.startW + diff);
+      setColWidths(function (prev) { return { ...prev, [colKey]: newW }; });
+    };
+
+    var onMouseUp = function () {
+      resizingRef.current = null;
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, [resizable]);
+
   // ─── Render ───────────────────────────────────────────────────────────
   if (columns.length === 0) return null;
 
@@ -247,11 +281,12 @@ export default function DataTable({ columns, rows, maxHeight = '500px', highligh
             style: { width: ROW_NO_W, minWidth: ROW_NO_W, height: 20, padding: 0, fontSize: 10 }
           }),
           columns.map(function (col, ci) {
+            var w = colWidths[col.key] || 80;
             return React.createElement('th', {
               key: 'l-' + col.key,
               'data-col-index': ci,
               className: 'sticky top-0 z-20 bg-zinc-50 text-center font-mono text-[10px] text-zinc-400 font-semibold select-none border-b border-r border-zinc-200',
-              style: { height: 20, padding: '0 6px', minWidth: 80 }
+              style: { height: 20, padding: '0 6px', minWidth: 40, width: w }
             }, colLetter(ci));
           }),
           hasAddCol ? React.createElement('th', {
@@ -275,6 +310,7 @@ export default function DataTable({ columns, rows, maxHeight = '500px', highligh
             var isOver = dragFeedback && dragFeedback.type === 'column' && dragFeedback.overIndex === ci;
             var isSource = dragFeedback && dragFeedback.type === 'column' && dragSourceIdx === ci;
             var canDeleteCol = editMode === 'editing' && onRemoveColumn && columns.length > 1;
+            var w = colWidths[col.key] || undefined;
             return React.createElement('th', {
               key: col.key,
               draggable: hasColDrag,
@@ -285,9 +321,11 @@ export default function DataTable({ columns, rows, maxHeight = '500px', highligh
               style: {
                 height: 26,
                 padding: '0 6px',
-                minWidth: 80,
+                minWidth: 40,
+                width: w,
                 borderLeft: isOver ? '2px solid #3b82f6' : undefined,
-                opacity: isSource ? 0.4 : undefined
+                opacity: isSource ? 0.4 : undefined,
+                position: 'relative'
               }
             },
               React.createElement('div', { className: 'flex items-center justify-center gap-0.5' },
@@ -303,7 +341,13 @@ export default function DataTable({ columns, rows, maxHeight = '500px', highligh
                     React.createElement('line', { x1: 6, y1: 6, x2: 18, y2: 18 })
                   )
                 ) : null
-              )
+              ),
+              // Resize handle
+              resizable ? React.createElement('div', {
+                onMouseDown: function (e: React.MouseEvent) { handleColResizeStart(e, col.key); },
+                className: 'absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-400 active:bg-blue-500 transition-colors z-10',
+                style: { background: 'transparent' }
+              }) : null
             );
           }),
           hasAddCol ? React.createElement('th', {

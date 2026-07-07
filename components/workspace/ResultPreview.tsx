@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { ColumnDef, RowData, ResultSummary } from '@/lib/types';
 import DataTable from '@/components/common/DataTable';
 import EmptyState from '@/components/common/EmptyState';
@@ -22,9 +22,20 @@ interface ResultPreviewProps {
   onRowReorder?: (fromIndex: number, toIndex: number) => void;
 }
 
-export default function ResultPreview({ columns, rows, summary, beforeData, onExport, flexBasis = '1', resetKey, error, isRunning, onColumnReorder, onRowReorder }: ResultPreviewProps) {
+export default function ResultPreview({ columns, rows, summary, beforeData, onExport, flexBasis = '1', resetKey, error, isRunning, onColumnReorder: externalColReorder, onRowReorder }: ResultPreviewProps) {
   const hasResult = rows.length > 0;
   const [fullscreen, setFullscreen] = useState(false);
+  // Local column reorder for browsing (no cell content change)
+  const [localColumns, setLocalColumns] = useState<ColumnDef[] | null>(null);
+  const displayColumns = localColumns || columns;
+
+  const handleColumnReorder = useCallback(function (fromIndex: number, toIndex: number) {
+    var cols = (localColumns || columns).slice();
+    var moved = cols.splice(fromIndex, 1)[0];
+    cols.splice(toIndex, 0, moved);
+    setLocalColumns(cols);
+    if (externalColReorder) externalColReorder(fromIndex, toIndex);
+  }, [localColumns, columns, externalColReorder]);
 
   return (
     <>
@@ -52,7 +63,7 @@ export default function ResultPreview({ columns, rows, summary, beforeData, onEx
               <span className="text-sm text-zinc-500">处理中...</span>
             </div>
           ) : hasResult ? (
-            <div className="h-full"><DataTable columns={columns} rows={rows} maxHeight="100%" resetKey={resetKey} onColumnReorder={onColumnReorder} onRowReorder={onRowReorder} /></div>
+            <div className="h-full"><DataTable columns={displayColumns} rows={rows} maxHeight="100%" resetKey={resetKey} onColumnReorder={handleColumnReorder} onRowReorder={onRowReorder} resizable={true} /></div>
           ) : error ? (
               <EmptyState icon="⚠️" title="执行失败" description={error} />
             ) : (
@@ -87,7 +98,7 @@ export default function ResultPreview({ columns, rows, summary, beforeData, onEx
             </div>
           </div>
           <div className="flex-1 min-h-0 overflow-auto p-6">
-            <DataTable columns={columns} rows={rows} maxHeight="100%" onColumnReorder={onColumnReorder} onRowReorder={onRowReorder} />
+            <DataTable columns={displayColumns} rows={rows} maxHeight="100%" onColumnReorder={handleColumnReorder} onRowReorder={onRowReorder} resizable={true} />
           </div>
           <div className="flex items-center gap-4 px-6 py-2.5 border-t border-zinc-200 shrink-0 text-xs text-zinc-400">
             <span>总行数：{rows.length}</span>
