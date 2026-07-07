@@ -324,11 +324,10 @@ export default function DataTable({ columns, rows, maxHeight = '500px', highligh
                 minWidth: 40,
                 width: w,
                 borderLeft: isOver ? '2px solid #3b82f6' : undefined,
-                opacity: isSource ? 0.4 : undefined,
-                position: 'relative'
+                opacity: isSource ? 0.4 : undefined
               }
             },
-              React.createElement('div', { className: 'flex items-center justify-center gap-0.5' },
+              React.createElement('div', { className: 'flex items-center justify-center gap-0.5 relative' },
                 React.createElement('span', { className: 'truncate' }, col.title),
                 canDeleteCol ? React.createElement('button', {
                   onClick: function (e: React.MouseEvent) { e.stopPropagation(); setPendingDeleteCol(col.key); },
