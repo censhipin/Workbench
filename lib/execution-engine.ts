@@ -378,10 +378,13 @@ export function runExecutionEngine(
 
   finishTrace();
 
+  // 无分组全局聚合 → 在原表底部追加合计行（仅影响 UI 展示）
+  const resultData = (overallSuccess && executionResult?.data) ? transformAggregateResult(executionResult.data, repairedPlan, currentSheet) : null;
+
   return {
     success: overallSuccess,
     steps,
-    resultData: (overallSuccess && executionResult?.data) ? executionResult.data : null,
+    resultData,
     resultSummary: (overallSuccess && executionResult?.summary) ? executionResult.summary : null,
     verification,
     intent,
@@ -430,4 +433,34 @@ function appendRepairSummary(msg: string, repairReport?: RepairReport): string {
     return `${msg}（已自动修复 ${repairReport.successCount} 项）`;
   }
   return msg;
+}
+
+/** 无分组聚合 → 在原表底部追加合计行（仅影响 UI 展示，不干扰验证） */
+function transformAggregateResult(
+  data: { columns: ColumnDef[]; rows: Record<string, string | number | null>[] },
+  plan: import('./v2/execution-plan').ExecutionPlan | null,
+  sheet: { columns: ColumnDef[]; rows: Record<string, string | number | null>[] } | undefined,
+): { columns: ColumnDef[]; rows: Record<string, string | number | null>[] } {
+  if (!sheet || !plan || plan.type !== 'aggregate') return data;
+  if ('groupBy' in plan && plan.groupBy && plan.groupBy.length > 0) return data;
+
+  const aggRow = data.rows[0];
+  if (!aggRow) return data;
+
+  const aggregations = (plan as any).aggregations;
+  if (!aggregations || !Array.isArray(aggregations) || aggregations.length === 0) return data;
+
+  const labelMap: Record<string, string> = { SUM: '合计', AVG: '平均', COUNT: '计数', MAX: '最大', MIN: '最小' };
+  const inlineRow: Record<string, string | number | null> = {};
+
+  for (const agg of aggregations) {
+    const suffix = labelMap[agg.method] || agg.method;
+    const resultKey = `${agg.column}_${suffix}`;
+    inlineRow[agg.column] = aggRow[resultKey] ?? null;
+  }
+
+  return {
+    columns: [...sheet.columns],
+    rows: [...sheet.rows.map(r => ({ ...r })), inlineRow],
+  };
 }
