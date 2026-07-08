@@ -16,6 +16,7 @@ function mapAction(action: TaskPlanAction): Operation {
     case 'filter': return 'filter';
     case 'aggregate': return 'sum';
     case 'delete': return 'clean';
+    case 'select': return 'select';
     case 'dedup': return 'dedup';
     case 'match': return 'match';
     case 'merge': return 'merge';
@@ -104,6 +105,10 @@ export function taskPlanToIntent(
   }
   if (plan.columnHints && plan.columnHints.length > 0) {
     params.targets = plan.columnHints;
+  }
+  // select 操作的 columns 也映射到 params.targets
+  if (plan.columns && plan.columns.length > 0) {
+    params.targets = plan.columns;
   }
 
   // === 关键修复：将 AI 解析的筛选条件同步到 params（ExecutionEngine 依赖 params）===
