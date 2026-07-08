@@ -52,6 +52,17 @@ export class PipelineExecutor implements OperationExecutor {
       }
     }
 
+    // 清理临时列（_temp_ 前缀的列仅用于中间计算）
+    const tempKeys = currentColumns.filter(c => c.key.startsWith('_temp_')).map(c => c.key);
+    if (tempKeys.length > 0) {
+      currentColumns = currentColumns.filter(c => !c.key.startsWith('_temp_'));
+      currentRows = currentRows.map(r => {
+        const clean = { ...r };
+        for (const k of tempKeys) delete clean[k];
+        return clean;
+      });
+    }
+
     return {
       result: { columns: currentColumns, rows: currentRows },
       summary: {

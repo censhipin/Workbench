@@ -97,6 +97,9 @@ ${colDescriptions}
 列C = 列A - 列B →
 {"action":"formula","targetColumn":"列C","sourceColumnHints":["列A","列B"],"expressionType":"-","expression":"列A-列B"}
 
+实发工资 = 基本工资 × 绩效 + 基本工资 →
+{"action":"formula","targetColumn":"实发工资","sourceColumnHints":["基本工资","绩效"],"expressionType":"*","expression":"实发工资 = 基本工资*绩效+基本工资"}
+
 列A保留两位小数 →
 {"action":"formula","targetColumn":"列A","sourceColumnHints":["列A"],"expressionType":"ROUND","decimalPlaces":2}
 
@@ -138,7 +141,7 @@ ${colDescriptions}
 {"action":"pipeline","steps":[{"action":"filter","conditions":[{"columnHint":"列A","operator":"=","value":"某值"}]},{"action":"sort","columnHint":"列B","direction":"desc"}]}
 
 	要求:
-6. 公式涉及多个操作符（如 +-*/ 混用）时，必须拆解为 pipeline 多步
+6. 公式支持直接写完整表达式（如 "实发工资 = 基本工资 * 绩效 + 基本工资"），用 expression 字段传递，不要拆解为 pipeline 多步
 7. "新增列/新增一列"是 formula，"把XX改成/增加"是 update
 8. 新增列=列A×0.9：使用 constantOperand 传常量
 1. 只输出 JSON，不要输出任何解释、Markdown、自然语言
