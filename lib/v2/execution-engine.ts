@@ -118,8 +118,24 @@ export function runExecutionPlan(
       };
     }
 
-    // Step 3: 输出深拷贝（确保输出不引用输入）
-    const outputData = cloneResult({ columns: processed.columns, rows: processed.rows });
+    // Step 3: 无分组全局聚合 → 在原表底部追加合计行
+    let outputData = cloneResult({ columns: processed.columns, rows: processed.rows });
+    if (validatedPlan.type === 'aggregate' && !('groupBy' in validatedPlan && validatedPlan.groupBy && validatedPlan.groupBy.length > 0)) {
+      const aggRow = outputData.rows[0];
+      if (aggRow && (plan as any).aggregations) {
+        // 将聚合结果映射到对应的原始列
+        const inlineRow: RowData = {};
+        for (const agg of (plan as any).aggregations) {
+          const labelMap: Record<string, string> = { SUM: '合计', AVG: '平均', COUNT: '计数', MAX: '最大', MIN: '最小' };
+          const resultKey = `${agg.column}_${labelMap[agg.method] || agg.method}`;
+          inlineRow[agg.column] = aggRow[resultKey] ?? null;
+        }
+        outputData = {
+          columns: [...inputColumns],
+          rows: [...inputRows.map(r => ({ ...r })), inlineRow],
+        };
+      }
+    }
 
     return {
       success: true,
