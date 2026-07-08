@@ -57,8 +57,11 @@ export class ProjectionVerifier implements Verifier {
     if (plan.renameColumns) {
       const renameEntries = Object.entries(plan.renameColumns);
       let allRenamed = true;
-      for (const [, newKey] of renameEntries) {
-        if (!outKeys.has(newKey)) { allRenamed = false; break; }
+      for (const [oldKey, newName] of renameEntries) {
+        // rename 不改 key 只改 title，所以查 outputs 中是否有一个列：
+        //   key = oldKey（原列还在）AND title = newName（已改名）
+        const col = outputColumns.find(c => c.key === oldKey);
+        if (!col || col.title !== newName) { allRenamed = false; break; }
       }
       checks.push({
         name: '重命名检查',

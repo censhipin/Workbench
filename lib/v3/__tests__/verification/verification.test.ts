@@ -526,8 +526,9 @@ describe('ProjectionVerifier', () => {
 
   it('rename 正确', () => {
     const plan: ExecutionPlan = { type: 'projection', renameColumns: { name: 'full_name' } };
+    // renameColumns: { oldKey: newTitle } — OutputProcessor 只改 title 不改 key
     const outCols: ColumnDef[] = [
-      { key: 'full_name', title: '姓名', type: 'text' },
+      { key: 'name', title: 'full_name', type: 'text' },
       { key: 'dept', title: '部门', type: 'text' },
       { key: 'salary', title: '工资', type: 'number' },
       { key: 'bonus', title: '奖金', type: 'number' },
