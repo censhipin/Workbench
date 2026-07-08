@@ -176,8 +176,8 @@ function validateAggregatePlan(plan: AggregatePlan, columns: ColumnDef[], issues
     const col = resolveCol(agg.column, columns);
     if (!col) {
       issues.push({ field: 'aggregations', message: `聚合列 "${agg.column}" 不存在`, severity: 'error' });
-    } else if (col.type !== 'number') {
-      issues.push({ field: 'aggregations', message: `"${col.title}" 不是数值列，聚合可能返回异常`, severity: 'warning' });
+    } else if (col.type !== 'number' && agg.method !== 'COUNT') {
+      issues.push({ field: 'aggregations', message: `"${col.title}" 不是数值列，${agg.method} 聚合可能返回异常`, severity: 'warning' });
     }
   }
   if (plan.groupBy) {
@@ -396,8 +396,8 @@ function profileValidateAggregate(
     const colProfile = profile.columns.find((c) => c.columnKey === agg.column);
     if (!colProfile) continue;
 
-    // 非数值列做聚合 → 错误
-    if (colProfile.type !== 'number') {
+    // 非数值列做聚合 → 错误（COUNT 除外，COUNT 只计数非空行）
+    if (colProfile.type !== 'number' && agg.method !== 'COUNT') {
       issues.push({
         field: `aggregations.${agg.column}`,
         message: `"${colProfile.title}" 列推断类型为 ${colProfile.type}，不是数值类型，${agg.method} 聚合可能返回异常结果`,
