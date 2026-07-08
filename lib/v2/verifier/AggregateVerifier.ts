@@ -26,13 +26,17 @@ export class AggregateVerifier implements Verifier {
     const aggregations = getAggregations(plan);
     const groupBy = plan.groupBy ?? [];
 
-    // 多列聚合（无分组）：无法用 aggregateRows 重验，做存在性检查
+    // 多列聚合：无法用 aggregateRows 重验，做存在性检查
     if (aggregations.length > 1) {
       const lastRow = outputRows[outputRows.length - 1];
       if (!lastRow) {
         return { passed: false, checks: [{ name: '聚合验证', passed: false, detail: '输出为空' }] };
       }
-      const allHaveValues = aggregations.every(agg => lastRow[agg.column] != null);
+      // 输出列的 key 格式为 {column}_{METHOD}，如 工资_AVG
+      const allHaveValues = aggregations.every(agg => {
+        const resultKey = `${agg.column}_${agg.method}`;
+        return lastRow[resultKey] != null;
+      });
       return {
         passed: allHaveValues,
         checks: [{
