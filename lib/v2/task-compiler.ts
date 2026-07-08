@@ -118,7 +118,13 @@ function compileFilter(plan: TaskPlan, ctx: ColumnContext): CompileResult {
       // dateRange 格式：{ start, end }
       conditions.push({ columnKey, operator, value: c.value, logic: c.logic });
     } else {
-      conditions.push({ columnKey, operator, value: c.value ?? '', logic: c.logic });
+      const condition: ConditionExpr = { columnKey, operator, value: c.value ?? '', logic: c.logic };
+      // 列间比较：valueColumnHint 指向另一列
+      if (c.valueColumn) {
+        const vcKey = resolveColumn(c.valueColumn, ctx);
+        if (vcKey) condition.valueColumn = vcKey;
+      }
+      conditions.push(condition);
     }
   }
 

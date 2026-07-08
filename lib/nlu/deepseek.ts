@@ -60,6 +60,9 @@ ${colDescriptions}
 筛选列A等于某个值的数据 →
 {"action":"filter","conditions":[{"columnHint":"列A","operator":"=","value":"值"}]}
 
+筛选库存数量大于安全库存的产品（列间比较：库存数量列 > 安全库存列）→
+{"action":"filter","conditions":[{"columnHint":"库存数量","operator":">","valueColumn":"安全库存"}]}
+
 按列A从高到低排序 →
 {"action":"sort","columnHint":"列A","direction":"desc"}
 

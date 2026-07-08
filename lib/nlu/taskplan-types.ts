@@ -9,6 +9,8 @@ export interface TaskPlanCondition {
   columnHint: string;
   operator: '=' | '!=' | '>' | '>=' | '<' | '<=' | 'contains' | 'isNull' | 'notNull' | 'dateRange';
   value?: string | { start: string; end: string };
+  /** 比较值来自另一列（如 "筛选库存数量大于安全库存"），此时 value 被忽略 */
+  valueColumn?: string;
   /** 逻辑连接词 OR（缺省 AND） */
   logic?: 'AND' | 'OR';
 }

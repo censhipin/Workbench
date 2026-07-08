@@ -29,7 +29,7 @@ export interface ConditionExpr {
   columnKey: string;
   /** 操作符 */
   operator: Operator;
-  /**
+/**
    * 比较值，根据 operator 不同：
    * - 标量操作符 (EQ/NE/GT/GTE/LT/LTE/CONTAINS/STARTS_WITH/ENDS_WITH): string | number
    * - 范围操作符 (BETWEEN): { start: number | string; end: number | string }
@@ -37,6 +37,8 @@ export interface ConditionExpr {
    * - 空值操作符 (IS_NULL/NOT_NULL): 忽略，传 null 即可
    */
   value: unknown;
+  /** 比较值来自另一列（列 key），此时 value 被忽略；用于列与列比较的场景 */
+  valueColumn?: string;
   /** 逻辑连接词（仅在多条件时有效，默认 AND） */
   logic?: 'AND' | 'OR';
 }

@@ -51,7 +51,8 @@ function evaluateConditions(
 
   for (const cond of conditions) {
     const cellValue = row[cond.columnKey];
-    const passed = evaluateCondition(cellValue, cond.operator, cond.value);
+    const compareValue = cond.valueColumn ? row[cond.valueColumn] : cond.value;
+    const passed = evaluateCondition(cellValue, cond.operator, compareValue);
 
     if (cond.logic === 'OR' || hasOr) {
       // OR 模式：只要有一个满足就为 true

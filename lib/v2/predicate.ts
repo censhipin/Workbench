@@ -91,7 +91,8 @@ export function evaluateCondition(
  */
 export function evaluateAll(row: Record<string, unknown>, conditions: ConditionExpr[]): boolean {
   for (const c of conditions) {
-    if (!evaluateCondition(row[c.columnKey], c.operator, c.value)) {
+    const compareValue = c.valueColumn ? row[c.valueColumn] : c.value;
+    if (!evaluateCondition(row[c.columnKey], c.operator, compareValue)) {
       return false;
     }
   }
