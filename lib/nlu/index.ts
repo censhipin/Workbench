@@ -140,14 +140,14 @@ export async function parseIntentWithAI(
  */
 function shouldResolveOperation(operation: string | null): boolean {
   if (!operation) return false;
-  return !['formula', 'update', 'pipeline', 'select'].includes(operation);
+  return !['formula', 'update', 'pipeline', 'select', 'remove'].includes(operation);
 }
 
 /**
  * 判断 TaskPlan action 是否需要列解析
  */
 function shouldResolveColumns(action: string): boolean {
-  return !['formula', 'update', 'pipeline', 'select'].includes(action);
+  return !['formula', 'update', 'pipeline', 'select', 'remove'].includes(action);
 }
 
 /**

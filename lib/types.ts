@@ -17,6 +17,7 @@ export type Operation =
   | 'formula'
   | 'pipeline'
   | 'select'
+  | 'remove'
   | null;
 
 export interface TaskIntent {

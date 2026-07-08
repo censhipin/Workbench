@@ -92,7 +92,7 @@ function operationLabel(op: string | null): string {
     sort: '数据排序', filter: '数据筛选', sum: '数据求和',
     dedup: '数据去重', match: '多表匹配', merge: '多表合并',
     clean: '数据清洗', update: '批量更新', formula: '公式计算',
-    pipeline: '多步流水线',
+    pipeline: '多步流水线', select: '列选择', remove: '删除列',
   };
   return op ? labels[op] || '' : '';
 }

@@ -152,6 +152,10 @@ export class RuleBasedSemanticParser implements SemanticTaskParser {
     const projectionResult = this.detectProjection(prompt, lower);
     if (projectionResult.operation) return projectionResult;
 
+    // ── remove 检测（"删除" -> 列删除） ──
+    const removeResult = this.detectDeletion(prompt, lower);
+    if (removeResult.operation) return removeResult;
+
     // ── 其它操作：依赖 lexicon ──
     const columnTitles = availableColumns.map(c => c.title).filter(Boolean);
     const operationTerms = this.lexicon.getOperations()
@@ -279,6 +283,21 @@ export class RuleBasedSemanticParser implements SemanticTaskParser {
       // fallback: 只要 prompt 含"只看/只保留/只显示"且不含比较运算符，保守认为 select
       if (!/[><=大于小于等于]/.test(prompt)) {
         return { operation: 'select', confidence: 0.75 };
+      }
+    }
+    return { operation: null, confidence: 0 };
+  }
+
+  /** 检测删除列操作（"删除部门列"、"去掉手机号列"等） */
+  private detectDeletion(prompt: string, lower: string): OperationDetection {
+    // 排除"删除重复"（那是 dedup 去重操作）
+    if (/^删除重复/.test(lower)) return { operation: null, confidence: 0 };
+    // 删除/去掉/移除 + 中文列名 + 列字（如 "删除部门列"、"去掉手机号"）
+    if (/^(?:删除|去掉|移除|删掉|剔除|丢弃)/.test(lower) && !/[><=大于小于等于]/.test(prompt)) {
+      // 必须后跟 2+ 字（列名）
+      const rest = lower.replace(/^(?:删除|去掉|移除|删掉|剔除|丢弃)\s*/, '');
+      if (rest.length >= 2 && !/[><=大于小于等于]/.test(rest)) {
+        return { operation: 'remove', confidence: 0.85 };
       }
     }
     return { operation: null, confidence: 0 };
@@ -897,13 +916,19 @@ export class RuleBasedSemanticParser implements SemanticTaskParser {
 
     const op = detected.operation;
 
-    // ── select 操作（列选择，如"只看姓名和岗位"）──
-    if (op === 'select') {
-      // 从"只看X和Y"中提取列名
-      const selectMatch = lower.match(/(?:只看|只保留|只显示)\s*(.+?)(?:$|，|,|然后|再|之后|接着)/);
+    // ── select / remove 操作（列选择/列删除）──
+    if (op === 'select' || op === 'remove') {
+      // 从"只看X和Y"或"删除X和Y列"中提取列名
+      const removeMatch = (op === 'remove')
+        ? lower.match(/(?:删除|去掉|移除|删掉|剔除|丢弃)\s*(.+?)(?:列)?(?:$|，|,|然后|再|之后|接着)/)
+        : null;
+      const selectMatch = (op === 'select')
+        ? lower.match(/(?:只看|只保留|只显示)\s*(.+?)(?:$|，|,|然后|再|之后|接着)/)
+        : null;
+      const rawMatch = removeMatch || selectMatch;
       const cols: string[] = [];
-      if (selectMatch) {
-        const raw = selectMatch[1].trim();
+      if (rawMatch) {
+        const raw = rawMatch[1].trim();
         // 按"和"、"、"、"与"分割
         const parts = raw.split(/[和与、,，]/).map(s => s.trim()).filter(Boolean);
         for (const p of parts) {
@@ -923,7 +948,7 @@ export class RuleBasedSemanticParser implements SemanticTaskParser {
       }
 
       return {
-        operation: 'select' as Operation,
+        operation: op as Operation,
         target: cols[0] || '',
         targetColumns: [],
         resolvedColumns: undefined,

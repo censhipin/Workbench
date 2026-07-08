@@ -55,9 +55,9 @@ export function ruleIntentToTaskPlan(intent: TaskIntent): TaskPlan {
     return plan;
   }
 
-  // ── select（列选择）：转为 select 操作 ──
-  if (intent.operation === 'select') {
-    plan.action = 'select';
+  // ── select/remove（列选择/列删除）：转为对应操作 ──
+  if (intent.operation === 'select' || intent.operation === 'remove') {
+    plan.action = intent.operation === 'remove' ? 'remove' : 'select';
     const targets = (intent.params.targets as string[]) || (intent.target ? [intent.target] : []);
     plan.columns = targets;
     return plan;
@@ -187,6 +187,7 @@ function mapOperationToAction(op: string | null): TaskPlanAction {
     case 'formula': return 'formula';
     case 'pipeline': return 'pipeline';
     case 'select': return 'select';
+    case 'remove': return 'remove';
     default: return 'unknown';
   }
 }

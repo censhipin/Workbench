@@ -17,6 +17,7 @@ function mapAction(action: TaskPlanAction): Operation {
     case 'aggregate': return 'sum';
     case 'delete': return 'clean';
     case 'select': return 'select';
+    case 'remove': return 'remove';
     case 'dedup': return 'dedup';
     case 'match': return 'match';
     case 'merge': return 'merge';
