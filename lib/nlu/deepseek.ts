@@ -72,6 +72,12 @@ ${colDescriptions}
 每个列B的列A平均值 →
 {"action":"aggregate","method":"avg","columnHints":["列A"],"groupByHints":["列B"]}
 
+按列B统计列A的总和和列C的最大值 →
+{"action":"aggregate","method":"sum","columnHints":["列A","列C"],"groupByHints":["列B"]}
+
+每个列B的列A平均值和列C的总和 →
+{"action":"aggregate","method":"avg","columnHints":["列A","列C"],"groupByHints":["列B"]}
+
 删除列A为空的数据 →
 {"action":"delete","conditions":[{"columnHint":"列A","operator":"isNull"}]}
 
