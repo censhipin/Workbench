@@ -153,6 +153,34 @@ function compileSort(plan: TaskPlan, ctx: ColumnContext): CompileResult {
 }
 
 function compileAggregate(plan: TaskPlan, ctx: ColumnContext): CompileResult {
+  const groupByKeys = plan.groupByHints
+    ?.map((h) => resolveColumn(h, ctx))
+    .filter(Boolean) as string[] | undefined;
+
+  // 新格式：每列各自指定方法（DeepSeek 输出 aggregations[]）
+  if (plan.aggregations && plan.aggregations.length > 0) {
+    const aggDefs: AggregationDef[] = [];
+    for (const agg of plan.aggregations) {
+      const colKey = resolveColumn(agg.columnHint, ctx);
+      if (!colKey) continue;
+      const method = mapAggMethodSimple(agg.method) || AggMethod.SUM;
+      aggDefs.push({ column: colKey, method });
+    }
+    if (aggDefs.length === 0) {
+      return { success: false, error: '找不到聚合目标列' };
+    }
+    const result: AggregatePlan = {
+      type: 'aggregate',
+      aggregations: aggDefs,
+      columns: aggDefs.map(a => a.column),
+      method: aggDefs[0].method,
+      groupBy: groupByKeys?.length ? groupByKeys : undefined,
+      output: undefined,
+    };
+    return { success: true, plan: result };
+  }
+
+  // 旧格式：所有列共用一个 method
   const hints = plan.columnHints || (plan.columnHint ? [plan.columnHint] : []);
   if (hints.length === 0) {
     return { success: false, error: '聚合操作缺少目标列' };
@@ -167,7 +195,7 @@ function compileAggregate(plan: TaskPlan, ctx: ColumnContext): CompileResult {
 
   const method = mapAggMethod(plan.method) || AggMethod.SUM;
 
-  const groupByKeys = plan.groupByHints
+  const groupByKeys2 = plan.groupByHints
     ?.map((h) => resolveColumn(h, ctx))
     .filter(Boolean) as string[] | undefined;
 
@@ -182,13 +210,22 @@ function compileAggregate(plan: TaskPlan, ctx: ColumnContext): CompileResult {
     aggregations,
     columns: columnKeys,
     method,
-    groupBy: groupByKeys?.length ? groupByKeys : undefined,
-    // 聚合后列名会加 _平均/_合计 等后缀，AI 输出的 includeColumns 匹配不上，所以丢弃
+    groupBy: groupByKeys2?.length ? groupByKeys2 : undefined,
     output: plan.output
       ? { renameColumns: plan.output.renameColumns, limit: plan.limit ?? plan.output.limit }
       : undefined,
   };
   return { success: true, plan: result };
+}
+
+function mapAggMethodSimple(m: string): AggMethod | undefined {
+  const map: Record<string, AggMethod> = {
+    sum: AggMethod.SUM, avg: AggMethod.AVG, count: AggMethod.COUNT,
+    max: AggMethod.MAX, min: AggMethod.MIN,
+    SUM: AggMethod.SUM, AVG: AggMethod.AVG, COUNT: AggMethod.COUNT,
+    MAX: AggMethod.MAX, MIN: AggMethod.MIN,
+  };
+  return map[m];
 }
 
 function compileDedup(plan: TaskPlan, ctx: ColumnContext): CompileResult {

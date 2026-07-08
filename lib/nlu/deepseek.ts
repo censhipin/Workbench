@@ -73,10 +73,13 @@ ${colDescriptions}
 {"action":"aggregate","method":"avg","columnHints":["列A"],"groupByHints":["列B"]}
 
 按列B统计列A的总和和列C的最大值 →
-{"action":"aggregate","method":"sum","columnHints":["列A","列C"],"groupByHints":["列B"]}
+{"action":"aggregate","aggregations":[{"columnHint":"列A","method":"sum"},{"columnHint":"列C","method":"max"}],"groupByHints":["列B"]}
 
 每个列B的列A平均值和列C的总和 →
-{"action":"aggregate","method":"avg","columnHints":["列A","列C"],"groupByHints":["列B"]}
+{"action":"aggregate","aggregations":[{"columnHint":"列A","method":"avg"},{"columnHint":"列C","method":"sum"}],"groupByHints":["列B"]}
+
+按部门统计平均工资和人数 →
+{"action":"aggregate","aggregations":[{"columnHint":"基本工资","method":"avg"},{"columnHint":"姓名","method":"count"}],"groupByHints":["部门"]}
 
 删除列A为空的数据 →
 {"action":"delete","conditions":[{"columnHint":"列A","operator":"isNull"}]}
@@ -252,6 +255,14 @@ function parseResponse(content: string): TaskPlan {
   if (raw.excludeColumns) plan.excludeColumns = raw.excludeColumns;
   if (raw.renameColumns) plan.renameColumns = raw.renameColumns;
   if (raw.reorderColumns) plan.reorderColumns = raw.reorderColumns;
+
+  // 多列聚合：每列独立方法
+  if (raw.aggregations && Array.isArray(raw.aggregations)) {
+    plan.aggregations = raw.aggregations.map((a: any) => ({
+      columnHint: a.columnHint || a.column,
+      method: a.method || 'sum',
+    }));
+  }
 
   // 兼容 conditions 字段
   if (raw.conditions) {

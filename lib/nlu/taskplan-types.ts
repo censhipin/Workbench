@@ -16,6 +16,12 @@ export interface TaskPlanCondition {
 /** 聚合操作 */
 export type AggMethod = 'sum' | 'avg' | 'count' | 'max' | 'min';
 
+/** DeepSeek 输出的单条聚合：列 + 各自的方法 */
+export interface AggregationHint {
+  columnHint: string;
+  method: AggMethod;
+}
+
 /** 排序方向 */
 export type SortDirection = 'asc' | 'desc';
 
@@ -46,7 +52,8 @@ export interface TaskPlan {
   matchKeyHint?: string;
   /** groupBy 列提示 */
   groupByHints?: string[];
-  /** 限制条数（如 top 10） */
+  /** 多列聚合：每列可指定不同方法（优先级高于 method+columnHints） */
+  aggregations?: AggregationHint[];
   limit?: number;
   /** AI 无法理解时的原因 */
   reason?: string;
