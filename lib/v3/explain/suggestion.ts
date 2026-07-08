@@ -66,13 +66,27 @@ function buildPlanSuggestions(plan: ExecutionPlan, profile: DataProfile | null):
   const s: string[] = [];
 
   if (plan.type === 'aggregate' && profile) {
-    const aggCols = plan.columns ?? [];
-    const planMethod = plan.method;
-    for (const colKey of aggCols) {
-      const colProfile = profile.columns.find(c => c.columnKey === colKey);
-      if (colProfile && colProfile.type !== 'number' && planMethod !== 'COUNT') {
-        const methodNames: Record<string, string> = { SUM: '求和', AVG: '平均值', MAX: '最大值', MIN: '最小值' };
-        s.push(`「${colProfile.title}」列不是数值类型，${methodNames[planMethod || 'SUM'] || planMethod}可能无效，建议更换为数值列。`);
+    // 新格式：每列各自指定方法
+    const planAggs = (plan as any).aggregations;
+    if (planAggs && Array.isArray(planAggs) && planAggs.length > 0) {
+      for (const agg of planAggs) {
+        if (agg.method === 'COUNT') continue;
+        const colProfile = profile.columns.find(c => c.columnKey === agg.column || c.title === agg.column);
+        if (colProfile && colProfile.type !== 'number') {
+          const methodNames: Record<string, string> = { SUM: '求和', AVG: '平均值', MAX: '最大值', MIN: '最小值' };
+          s.push(`「${colProfile.title}」列不是数值类型，${methodNames[agg.method] || agg.method}可能无效，建议更换为数值列。`);
+        }
+      }
+    } else {
+      // 旧格式：所有列共用一个 method
+      const aggCols = plan.columns ?? [];
+      const planMethod = plan.method;
+      for (const colKey of aggCols) {
+        const colProfile = profile.columns.find(c => c.columnKey === colKey);
+        if (colProfile && colProfile.type !== 'number' && planMethod !== 'COUNT') {
+          const methodNames: Record<string, string> = { SUM: '求和', AVG: '平均值', MAX: '最大值', MIN: '最小值' };
+          s.push(`「${colProfile.title}」列不是数值类型，${methodNames[planMethod || 'SUM'] || planMethod}可能无效，建议更换为数值列。`);
+        }
       }
     }
   }
