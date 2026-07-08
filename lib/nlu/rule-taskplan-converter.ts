@@ -63,6 +63,14 @@ export function ruleIntentToTaskPlan(intent: TaskIntent): TaskPlan {
     return plan;
   }
 
+  // ── rename（列重命名）：转为 rename 操作 ──
+  if (intent.operation === 'rename') {
+    plan.action = 'rename';
+    plan.column = (intent.params.oldName as string) || intent.target || '';
+    plan.newName = (intent.params.newName as string) || '';
+    return plan;
+  }
+
   // ── pipeline select 子步骤也设置 columns ──
   if (intent.params.targets && Array.isArray(intent.params.targets) && intent.params.targets.length > 0 && plan.action !== 'select') {
     plan.columnHints = intent.params.targets as string[];
@@ -188,6 +196,7 @@ function mapOperationToAction(op: string | null): TaskPlanAction {
     case 'pipeline': return 'pipeline';
     case 'select': return 'select';
     case 'remove': return 'remove';
+    case 'rename': return 'rename';
     default: return 'unknown';
   }
 }

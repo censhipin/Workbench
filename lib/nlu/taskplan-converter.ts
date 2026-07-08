@@ -24,6 +24,7 @@ function mapAction(action: TaskPlanAction): Operation {
     case 'clean': return 'clean';
     case 'update': return 'update';
     case 'formula': return 'formula';
+    case 'rename': return 'rename';
     case 'pipeline': return 'pipeline';
     default: return null;
   }
@@ -142,6 +143,11 @@ export function taskPlanToIntent(
   if (plan.column) params.column = plan.column;
   if (plan.updateColumn) params.updateColumn = plan.updateColumn;
   if (plan.columnHints) params.targets = plan.columnHints;
+  // ── rename 操作字段 ──
+  if (operation === 'rename') {
+    if (plan.column) params.oldName = plan.column;
+    if (plan.newName) params.newName = plan.newName;
+  }
 
   // pipeline 子步骤
   const steps: TaskIntent[] | undefined = plan.steps

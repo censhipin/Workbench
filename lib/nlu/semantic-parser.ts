@@ -156,6 +156,10 @@ export class RuleBasedSemanticParser implements SemanticTaskParser {
     const removeResult = this.detectDeletion(prompt, lower);
     if (removeResult.operation) return removeResult;
 
+    // ── rename 检测（"重命名" -> 列重命名） ──
+    const renameResult = this.detectRename(lower);
+    if (renameResult.operation) return renameResult;
+
     // ── 其它操作：依赖 lexicon ──
     const columnTitles = availableColumns.map(c => c.title).filter(Boolean);
     const operationTerms = this.lexicon.getOperations()
@@ -299,6 +303,19 @@ export class RuleBasedSemanticParser implements SemanticTaskParser {
       if (rest.length >= 2 && !/[><=大于小于等于]/.test(rest)) {
         return { operation: 'remove', confidence: 0.85 };
       }
+    }
+    return { operation: null, confidence: 0 };
+  }
+
+  /** 检测重命名操作（"将XX重命名为YY"、"把XX改成YY"等） */
+  private detectRename(lower: string): OperationDetection {
+    if (/重命名/.test(lower) && /(?:将|把|为)/.test(lower)) {
+      return { operation: 'rename', confidence: 0.85 };
+    }
+    // "将XX改为YY"且XX是列名（注意与 update 操作的 "将XX改为值" 区分）
+    // rename 区别于 update：rename 操作命中的是整列改名而不是行列值填充
+    if (/^(?:将|把).+重名命(?:为|成)/.test(lower)) {
+      return { operation: 'rename', confidence: 0.8 };
     }
     return { operation: null, confidence: 0 };
   }
@@ -918,7 +935,6 @@ export class RuleBasedSemanticParser implements SemanticTaskParser {
 
     // ── select / remove 操作（列选择/列删除）──
     if (op === 'select' || op === 'remove') {
-      // 从"只看X和Y"或"删除X和Y列"中提取列名
       const removeMatch = (op === 'remove')
         ? lower.match(/(?:删除|去掉|移除|删掉|剔除|丢弃)\s*(.+?)(?:列)?(?:$|，|,|然后|再|之后|接着)/)
         : null;
@@ -954,6 +970,28 @@ export class RuleBasedSemanticParser implements SemanticTaskParser {
         resolvedColumns: undefined,
         scope: 'all',
         params: { targets: cols },
+        targetFiles: fileNames,
+        rawPrompt: prompt,
+        confidence: 0.85,
+      };
+    }
+
+    // ── rename 操作（列重命名，如"将XX重命名为YY"）──
+    if (op === 'rename') {
+      // "将基本工资重命名为基本薪资"
+      const renameMatch = lower.match(/(?:将|把)\s*(.+?)\s*重命名(?:为|成)\s*(.+?)(?:$|，|,)/);
+      const params: Record<string, unknown> = {};
+      if (renameMatch) {
+        params.oldName = renameMatch[1].trim();
+        params.newName = renameMatch[2].trim();
+      }
+      return {
+        operation: 'rename',
+        target: '',
+        targetColumns: [],
+        resolvedColumns: undefined,
+        scope: 'all',
+        params,
         targetFiles: fileNames,
         rawPrompt: prompt,
         confidence: 0.85,

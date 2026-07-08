@@ -112,7 +112,7 @@ export class AmbiguityDetector {
     const labels: Record<string, string> = {
       sort: '数据排序', filter: '数据筛选', sum: '数据求和',
       dedup: '数据去重', match: '多表匹配', merge: '多表合并', clean: '数据清洗',
-      select: '列选择', remove: '删除列',
+      select: '列选择', remove: '删除列', rename: '列重命名',
     };
     const targetCols = intent.resolvedColumns ?? intent.targetColumns;
     return {
