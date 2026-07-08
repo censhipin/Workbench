@@ -456,9 +456,25 @@ function transformAggregateResult(
   for (const agg of aggregations) {
     const suffix = labelMap[agg.method] || agg.method;
     const resultKey = `${agg.column}_${suffix}`;
-    inlineRow[agg.column] = aggRow[resultKey] ?? null;
+    const aggValue = aggRow[resultKey] ?? null;
+
+    if ((agg.method === 'MAX' || agg.method === 'MIN') && aggValue !== null) {
+      // MAX/MIN：筛选出等于极值的行，而非追加一行
+      const filtered = sheet.rows.filter(r => {
+        const v = r[agg.column];
+        if (v == null || v === '') return false;
+        const n = Number(v);
+        return !isNaN(n) && n === Number(aggValue);
+      });
+      if (filtered.length > 0) {
+        return { columns: [...sheet.columns], rows: filtered };
+      }
+    }
+
+    inlineRow[agg.column] = aggValue;
   }
 
+  // 无 MAX/MIN 或没有匹配行 → 追加合计行
   return {
     columns: [...sheet.columns],
     rows: [...sheet.rows.map(r => ({ ...r })), inlineRow],
