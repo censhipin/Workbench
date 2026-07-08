@@ -183,7 +183,10 @@ function compileAggregate(plan: TaskPlan, ctx: ColumnContext): CompileResult {
     columns: columnKeys,
     method,
     groupBy: groupByKeys?.length ? groupByKeys : undefined,
-    output: compileOutput(plan),
+    // 聚合后列名会加 _平均/_合计 等后缀，AI 输出的 includeColumns 匹配不上，所以丢弃
+    output: plan.output
+      ? { renameColumns: plan.output.renameColumns, limit: plan.limit ?? plan.output.limit }
+      : undefined,
   };
   return { success: true, plan: result };
 }
