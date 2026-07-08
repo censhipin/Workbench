@@ -98,11 +98,17 @@ export function aggregateRows(
   const aggResultKey = aggDef ? `${aggDef.key}_${suffix}` : `agg_${suffix}`;
   const aggResultTitle = aggDef ? `${aggDef.title}_${suffix}` : `鑱氬悎缁撴灉_${suffix}`;
 
-  // 鏃犲垎缁?鈫?鍏ㄥ眬鑱氬悎
+  // 无分组 → 全局聚合
   if (groupByCols.length === 0) {
-    const nums = rows.map((r) => r[aggCol]).filter((v) => v != null && !isNaN(Number(v))).map(Number);
+    let resultVal: number | null;
+    if (method === 'COUNT') {
+      resultVal = rows.filter(r => r[aggCol] != null && r[aggCol] !== '').length;
+    } else {
+      const nums = rows.map((r) => r[aggCol]).filter((v) => v != null && !isNaN(Number(v))).map(Number);
+      resultVal = aggregate(nums, method);
+    }
     const row: RowData = {};
-    row[aggResultKey] = aggregate(nums, method);
+    row[aggResultKey] = resultVal;
     return { columns: [{ key: aggResultKey, title: aggResultTitle, type: 'number' }], rows: [row] };
   }
 
@@ -127,8 +133,13 @@ export function aggregateRows(
     const vals = gk.split('||');
     const row: RowData = {};
     groupByCols.forEach((c, i) => { row[c] = vals[i] || null; });
-    const nums = gRows.map((r) => r[aggCol]).filter((v) => v != null && !isNaN(Number(v))).map(Number);
-    row[aggResultKey] = aggregate(nums, method);
+    if (method === 'COUNT') {
+      // COUNT 不要求数值类型，只计非空行数
+      row[aggResultKey] = gRows.filter(r => r[aggCol] != null && r[aggCol] !== '').length;
+    } else {
+      const nums = gRows.map((r) => r[aggCol]).filter((v) => v != null && !isNaN(Number(v))).map(Number);
+      row[aggResultKey] = aggregate(nums, method);
+    }
     resultRows.push(row);
   }
 
