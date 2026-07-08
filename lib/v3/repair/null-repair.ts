@@ -214,14 +214,15 @@ export function repairNullHandling(
     case 'clean': {
       const colProfiles = profile.columns.filter((c) => c.nullRate > 0);
       for (const cp of colProfiles) {
+        // clean 操作不清洗空值，只做空行删除和非法数字清理，所以不应标记为 auto
         repairs.push({
           action: 'NULL_HANDLE',
           target: cp.columnKey,
           original: cp.nullRate,
           repaired: null,
           confidence: 0.9,
-          category: 'auto',
-          detail: `"${cp.title}" 列 ${cp.nullCount} 个空值将被清理`,
+          category: 'suggest',
+          detail: `"${cp.title}" 列发现 ${cp.nullCount} 个空值`,
         });
       }
       break;
