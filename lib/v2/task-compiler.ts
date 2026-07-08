@@ -164,7 +164,7 @@ function compileAggregate(plan: TaskPlan, ctx: ColumnContext): CompileResult {
       const colKey = resolveColumn(agg.columnHint, ctx);
       if (!colKey) continue;
       const method = mapAggMethodSimple(agg.method) || AggMethod.SUM;
-      aggDefs.push({ column: colKey, method });
+      aggDefs.push({ column: colKey, method, alias: agg.alias });
     }
     if (aggDefs.length === 0) {
       return { success: false, error: '找不到聚合目标列' };

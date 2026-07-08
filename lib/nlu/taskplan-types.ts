@@ -20,6 +20,8 @@ export type AggMethod = 'sum' | 'avg' | 'count' | 'max' | 'min';
 export interface AggregationHint {
   columnHint: string;
   method: AggMethod;
+  /** 聚合结果列的自定义别名（如 "平均工资"），为空时自动生成 */
+  alias?: string;
 }
 
 /** 排序方向 */

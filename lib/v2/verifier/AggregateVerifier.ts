@@ -47,9 +47,9 @@ export class AggregateVerifier implements Verifier {
       if (!lastRow) {
         return { passed: false, checks: [{ name: '聚合验证', passed: false, detail: '输出为空' }] };
       }
-      // 输出列的 key 格式为 {column}_{label}，如 工资_平均
+      // 输出列的 key 格式为 {column}_{label}（有 alias 时直接用 alias）
       const allHaveValues = aggregations.every(agg => {
-        const resultKey = `${agg.column}_${aggLabel(agg.method)}`;
+        const resultKey = agg.alias || `${agg.column}_${aggLabel(agg.method)}`;
         return lastRow[resultKey] != null;
       });
       return {

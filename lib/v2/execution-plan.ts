@@ -33,6 +33,8 @@ export enum AggMethod {
 export interface AggregationDef {
   column: string;
   method: AggMethod;
+  /** 聚合结果列的自定义别名，为空时自动生成 {column}_{label} */
+  alias?: string;
 }
 
 /** 从 AggregatePlan 获取聚合定义列表（兼容新旧格式） */

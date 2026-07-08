@@ -81,6 +81,9 @@ ${colDescriptions}
 按部门统计平均工资和人数 →
 {"action":"aggregate","aggregations":[{"columnHint":"基本工资","method":"avg"},{"columnHint":"姓名","method":"count"}],"groupByHints":["部门"]}
 
+按部门统计平均工资和部门人数（使用 alias 自定义列名）→
+{"action":"aggregate","aggregations":[{"columnHint":"基本工资","method":"avg","alias":"平均工资"},{"columnHint":"姓名","method":"count","alias":"人数"}],"groupByHints":["部门"]}
+
 删除列A为空的数据 →
 {"action":"delete","conditions":[{"columnHint":"列A","operator":"isNull"}]}
 
@@ -261,6 +264,7 @@ function parseResponse(content: string): TaskPlan {
     plan.aggregations = raw.aggregations.map((a: any) => ({
       columnHint: a.columnHint || a.column,
       method: a.method || 'sum',
+      alias: a.alias,
     }));
   }
 

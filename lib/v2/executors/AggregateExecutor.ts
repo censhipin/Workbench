@@ -98,9 +98,11 @@ function executeGroupedAggregation(
   for (const agg of aggregations) {
     const def = inputColumns.find(c => c.key === agg.column);
     const label = aggMethodLabel(agg.method);
+    const resultKey = agg.alias || `${agg.column}_${label}`;
+    const resultTitle = agg.alias || (def ? `${def.title}_${label}` : `${agg.column}_${label}`);
     resultCols.push({
-      key: `${agg.column}_${label}`,
-      title: def ? `${def.title}_${label}` : `${agg.column}_${label}`,
+      key: resultKey,
+      title: resultTitle,
       type: 'number',
     });
   }
@@ -114,12 +116,18 @@ function executeGroupedAggregation(
 
     // 逐条聚合定义计算
     for (const agg of aggregations) {
-      const nums = group.rows
-        .map(r => r[agg.column])
-        .filter(v => v != null && v !== '' && !isNaN(Number(v)))
-        .map(Number);
       const label = aggMethodLabel(agg.method);
-      row[`${agg.column}_${label}`] = aggregate(nums, agg.method);
+      const key = agg.alias || `${agg.column}_${label}`;
+      if (agg.method === AggMethod.COUNT) {
+        // COUNT 只计数非空行，不需数值过滤
+        row[key] = group.rows.filter(r => r[agg.column] != null && r[agg.column] !== '').length;
+      } else {
+        const nums = group.rows
+          .map(r => r[agg.column])
+          .filter(v => v != null && v !== '' && !isNaN(Number(v)))
+          .map(Number);
+        row[key] = aggregate(nums, agg.method);
+      }
     }
 
     resultRows.push(row);
@@ -145,15 +153,20 @@ function executeGlobalAggregation(
 
   for (const agg of aggregations) {
     const def = inputColumns.find(c => c.key === agg.column);
-    const nums = inputRows
-      .map(r => r[agg.column])
-      .filter(v => v != null && v !== '' && !isNaN(Number(v)))
-      .map(Number);
     const label = aggMethodLabel(agg.method);
-    const resultKey = `${agg.column}_${label}`;
-    const resultTitle = def ? `${def.title}_${label}` : `${agg.column}_${label}`;
+    const resultKey = agg.alias || `${agg.column}_${label}`;
+    const resultTitle = agg.alias || (def ? `${def.title}_${label}` : `${agg.column}_${label}`);
 
-    row[resultKey] = aggregate(nums, agg.method);
+    if (agg.method === AggMethod.COUNT) {
+      // COUNT 只计数非空行，不需数值过滤
+      row[resultKey] = inputRows.filter(r => r[agg.column] != null && r[agg.column] !== '').length;
+    } else {
+      const nums = inputRows
+        .map(r => r[agg.column])
+        .filter(v => v != null && v !== '' && !isNaN(Number(v)))
+        .map(Number);
+      row[resultKey] = aggregate(nums, agg.method);
+    }
     resultCols.push({ key: resultKey, title: resultTitle, type: 'number' });
   }
 
