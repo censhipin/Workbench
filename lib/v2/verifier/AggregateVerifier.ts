@@ -10,6 +10,21 @@ import type { Verifier, VerificationResult } from './types';
 import type { ExecutionPlan } from '../execution-plan';
 import type { ColumnDef, RowData } from '@/lib/types';
 
+/**
+ * 与 AggregateExecutor 保持一致的标签映射
+ * 输出列 key 格式为 {column}_{label}
+ */
+function aggLabel(method: AggMethod): string {
+  const map: Record<AggMethod, string> = {
+    [AggMethod.SUM]: '合计',
+    [AggMethod.AVG]: '平均',
+    [AggMethod.COUNT]: '计数',
+    [AggMethod.MAX]: '最大',
+    [AggMethod.MIN]: '最小',
+  };
+  return map[method];
+}
+
 export class AggregateVerifier implements Verifier {
   readonly type = 'aggregate';
 
@@ -32,9 +47,9 @@ export class AggregateVerifier implements Verifier {
       if (!lastRow) {
         return { passed: false, checks: [{ name: '聚合验证', passed: false, detail: '输出为空' }] };
       }
-      // 输出列的 key 格式为 {column}_{METHOD}，如 工资_AVG
+      // 输出列的 key 格式为 {column}_{label}，如 工资_平均
       const allHaveValues = aggregations.every(agg => {
-        const resultKey = `${agg.column}_${agg.method}`;
+        const resultKey = `${agg.column}_${aggLabel(agg.method)}`;
         return lastRow[resultKey] != null;
       });
       return {
