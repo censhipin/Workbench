@@ -411,6 +411,7 @@ function mapOperator(op: string): Operator | null {
     isNull: Operator.IS_NULL,
     notNull: Operator.NOT_NULL,
     dateRange: Operator.BETWEEN,
+    between: Operator.BETWEEN,
     in: Operator.IN,
     notIn: Operator.NOT_IN,
     startsWith: Operator.STARTS_WITH,

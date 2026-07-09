@@ -1978,6 +1978,17 @@ export class RuleBasedSemanticParser implements SemanticTaskParser {
     }
 
     if (operation === 'filter') {
+      // 范围筛选：在X到Y之间
+      const rangeMatch = lower.match(/在\s*(.+?)\s*(?:到|至|~|～)\s*(.+?)\s*(?:之间|范围内|区间)?/);
+      if (rangeMatch) {
+        const start = chineseNumberToArabic(rangeMatch[1].trim()) ?? parseFloat(rangeMatch[1].trim());
+        const end = chineseNumberToArabic(rangeMatch[2].trim()) ?? parseFloat(rangeMatch[2].trim());
+        if (!isNaN(start) && !isNaN(end)) {
+          params.dateRange = { start: String(start), end: String(end) };
+          params.operator = 'dateRange';
+        }
+      }
+
       // 识别比较运算符和提取数值
       let opType = 'eq';
       let filterValue = '';
