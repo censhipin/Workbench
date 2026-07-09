@@ -336,10 +336,16 @@ export default function Home() {
   }, [currentSheet, setApiKeyMode, setShowApiKeyDialog]);
 
   // 检测/检查类指令拦截 → 弹出审计引导，不走执行
-  const AUDIT_KEYWORDS = ['检查', '检测', '审阅', '质量'];
+  const AUDIT_TRIGGERS = [
+    /^(?:检查|检测|审阅|查看|找|看|查一查|查一下|看看)/,   // 动作开头
+    /(?:空值|缺失|缺少|空白|没填)/,                        // 空值相关
+    /(?:格式|手机号|身份证|邮箱|邮件|电话|日期|金额)/,     // 格式相关
+    /(?:重复|异常|错误|不对|有误|有问题|无效)/,           // 问题相关
+    /(?:质量|质量检查|数据质量|完整性|规范性)/,           // 质量相关
+  ];
   const handleSubmitWrapper = useCallback(() => {
     const lower = promptText.trim().toLowerCase();
-    const isAuditRequest = AUDIT_KEYWORDS.some(kw => lower.startsWith(kw));
+    const isAuditRequest = AUDIT_TRIGGERS.some(re => re.test(lower));
     if (isAuditRequest && currentSheet) {
       setAuditGuidePrompt(promptText.trim());
       setShowAuditGuide(true);
