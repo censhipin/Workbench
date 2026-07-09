@@ -68,4 +68,5 @@ export const KNOWN_FUNCTIONS = new Set([
   'LEFT', 'RIGHT', 'MID', 'LEN',
   'YEAR', 'MONTH', 'DAY', 'TODAY', 'DATEDIF',
   'SUMIF', 'COUNTIF', 'AVERAGEIF',
+  'CONCAT', 'TEXTJOIN',
 ]);

@@ -38,7 +38,7 @@ export class FormulaVerifier implements Verifier {
     }
 
     // 文本函数（LEFT/RIGHT/MID）和 TODAY 返回字符串；IF 可返回文本或数字；DATEDIF 返回数字
-    var TEXT_FUNCTIONS = ['LEFT', 'RIGHT', 'MID', 'TODAY', 'IF'];
+    var TEXT_FUNCTIONS = ['LEFT', 'RIGHT', 'MID', 'TODAY', 'IF', 'CONCAT', 'TEXTJOIN'];
     var isTextFunction = TEXT_FUNCTIONS.indexOf(expressionType) >= 0;
     var isDateDif = expressionType === 'DATEDIF';
 

@@ -215,7 +215,7 @@ export class RuleBasedSemanticParser implements SemanticTaskParser {
     const formulaKeywords = [
       '新增列', '增加列', '创建列', '计算列', '生成列', '新列',
       '公式', '乘以', '除以', '加上', '减去',
-      '×', '÷', '*',
+      '×', '÷', '*', '合并', '拼接', '连接',
     ];
 
     // 如果/若/当...则/就 → IF 公式

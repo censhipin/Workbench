@@ -217,6 +217,14 @@ function evaluateFunction(node: import('./types').FunctionCallNode, ctx: EvalCon
       const text = evaluate(args[0], ctx);
       return text == null ? 0 : String(text).length;
     }
+    case 'CONCAT': {
+      return args.map(a => String(evaluate(a, ctx) ?? '')).join('');
+    }
+    case 'TEXTJOIN': {
+      // TEXTJOIN(delimiter, text1, text2, ...)
+      const delimiter = String(evaluate(args[0], ctx) ?? '');
+      return args.slice(1).map(a => String(evaluate(a, ctx) ?? '')).join(delimiter);
+    }
 
     // ── 日期函数 ──
     case 'YEAR': {

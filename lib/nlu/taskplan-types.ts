@@ -90,7 +90,7 @@ export interface TaskPlan {
   /** ROUND 的小数位数 */
   decimalPlaces?: number;
   /** 表达式类型 */
-  expressionType?: '*' | '/' | '+' | '-' | 'ROUND' | 'ABS' | 'SUM' | 'AVG' | 'IF' | 'DATEDIF' | 'YEAR' | 'MONTH' | 'DAY' | 'TODAY' | 'LEFT' | 'RIGHT' | 'MID' | 'LEN' | 'SUMIF' | 'COUNTIF' | 'AVERAGEIF';
+  expressionType?: '*' | '/' | '+' | '-' | 'ROUND' | 'ABS' | 'SUM' | 'AVG' | 'IF' | 'DATEDIF' | 'YEAR' | 'MONTH' | 'DAY' | 'TODAY' | 'LEFT' | 'RIGHT' | 'MID' | 'LEN' | 'SUMIF' | 'COUNTIF' | 'AVERAGEIF' | 'CONCAT' | 'TEXTJOIN';
   /** 计算的源列 */
   sourceColumnHints?: string[];
   /** formula 常量操作数（如金额*0.9 中的 0.9） */

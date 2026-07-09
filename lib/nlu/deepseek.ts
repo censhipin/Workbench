@@ -148,6 +148,12 @@ ${colDescriptions}
 统计列A大于某值的数量 →
 {"action":"formula","targetColumn":"列B","sourceColumnHints":["列A"],"expressionType":"COUNTIF","conditionColumnHint":"列A","conditionOperator":">","conditionValue":"某值","trueValue":"1"}
 
+将列A和列B合并为一列 →
+{"action":"formula","targetColumn":"列C","sourceColumnHints":["列A","列B"],"expressionType":"CONCAT","expression":"CONCAT(列A,列B)"}
+
+用逗号合并列A和列B →
+{"action":"formula","targetColumn":"列C","sourceColumnHints":["列A","列B"],"expressionType":"TEXTJOIN","constantOperand":",","expression":"TEXTJOIN(\",\",列A,列B)"}
+
 # pipeline 多步操作
 操作1，再操作2 →
 {"action":"pipeline","steps":[{"action":"filter","conditions":[{"columnHint":"列A","operator":"=","value":"某值"}]},{"action":"sort","columnHint":"列B","direction":"desc"}]}

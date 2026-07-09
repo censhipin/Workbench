@@ -198,7 +198,7 @@ export interface FormulaPlan {
   /** 参与计算的源列 key 列表 */
   sourceColumns: string[];
   /** 表达式类型 */
-  expressionType: '*' | '/' | '+' | '-' | 'ROUND' | 'ABS' | 'SUM' | 'AVG' | 'IF' | 'LEFT' | 'RIGHT' | 'MID' | 'LEN' | 'YEAR' | 'MONTH' | 'DAY' | 'TODAY' | 'DATEDIF' | 'SUMIF' | 'COUNTIF' | 'AVERAGEIF';
+  expressionType: '*' | '/' | '+' | '-' | 'ROUND' | 'ABS' | 'SUM' | 'AVG' | 'IF' | 'LEFT' | 'RIGHT' | 'MID' | 'LEN' | 'YEAR' | 'MONTH' | 'DAY' | 'TODAY' | 'DATEDIF' | 'SUMIF' | 'COUNTIF' | 'AVERAGEIF' | 'CONCAT' | 'TEXTJOIN';
   /** 表达式可读描述 */
   expression?: string;
   /** ROUND 的小数位数 */
