@@ -11,6 +11,7 @@ import type { ExecutionPlan } from '../execution-plan';
 import { isNull } from './null-definition';
 import { Operator } from '../types';
 import type { ConditionExpr } from '../types';
+import { evaluateConditions } from '../predicate';
 
 export class FilterExecutor implements OperationExecutor {
   readonly type = 'filter';
@@ -36,44 +37,6 @@ export class FilterExecutor implements OperationExecutor {
       },
     };
   }
-}
-
-/** 用 AND/OR 逻辑求值条件组 */
-function evaluateConditions(
-  row: Record<string, unknown>,
-  conditions: ConditionExpr[],
-): boolean {
-  if (conditions.length === 0) return true;
-
-  // 默认 AND 连接，除非某个条件标注了 OR
-  let result = true;
-  let hasOr = false;
-
-  for (const cond of conditions) {
-    const cellValue = row[cond.columnKey];
-    const compareValue = cond.valueColumn ? row[cond.valueColumn] : cond.value;
-    const passed = evaluateCondition(cellValue, cond.operator, compareValue);
-
-    if (cond.logic === 'OR' || hasOr) {
-      // OR 模式：只要有一个满足就为 true
-      if (!hasOr) {
-        hasOr = true;
-        result = passed;
-      } else {
-        result = result || passed;
-      }
-    } else {
-      // AND 模式：全部需要满足
-      if (hasOr) {
-        // 混合模式：OR 组已确定，后续 AND 在 OR 组为 true 时仍需满足
-        result = result && passed;
-      } else {
-        result = result && passed;
-      }
-    }
-  }
-
-  return result;
 }
 
 /** 单条件求值（使用 NullDefinition） */

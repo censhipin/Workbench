@@ -63,6 +63,9 @@ ${colDescriptions}
 筛选基本工资在5000到10000之间 →
 {"action":"filter","conditions":[{"columnHint":"基本工资","operator":"dateRange","value":{"start":"5000","end":"10000"}}]}
 
+筛选部门等于技术部或者部门等于销售部 →
+{"action":"filter","conditions":[{"columnHint":"部门","operator":"=","value":"技术部"},{"columnHint":"部门","operator":"=","value":"销售部","logic":"OR"}]}
+
 筛选库存数量大于安全库存的产品（列间比较：库存数量列 > 安全库存列）→
 {"action":"filter","conditions":[{"columnHint":"库存数量","operator":">","valueColumn":"安全库存"}]}
 

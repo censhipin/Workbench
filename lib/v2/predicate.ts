@@ -87,16 +87,44 @@ export function evaluateCondition(
 }
 
 /**
- * 对 EvaluationPlan 中所有 conditions 做 AND 组合求值
+ * 对 EvaluationPlan 中所有 conditions 做 AND/OR 组合求值
+ * 默认 AND 连接，当条件标注 logic='OR' 时进入 OR 模式。
+ * 支持混合 AND + OR。
  */
 export function evaluateAll(row: Record<string, unknown>, conditions: ConditionExpr[]): boolean {
-  for (const c of conditions) {
-    const compareValue = c.valueColumn ? row[c.valueColumn] : c.value;
-    if (!evaluateCondition(row[c.columnKey], c.operator, compareValue)) {
-      return false;
+  return evaluateConditions(row, conditions);
+}
+
+/**
+ * AND/OR 混合条件求值（与 FilterExecutor 共享同一实现）
+ * 默认 AND 连接，当某个条件标注 logic='OR' 时进入 OR 模式。
+ */
+export function evaluateConditions(
+  row: Record<string, unknown>,
+  conditions: ConditionExpr[],
+): boolean {
+  if (conditions.length === 0) return true;
+
+  let result = true;
+  let hasOr = false;
+
+  for (const cond of conditions) {
+    const compareValue = cond.valueColumn ? row[cond.valueColumn] : cond.value;
+    const passed = evaluateCondition(row[cond.columnKey], cond.operator, compareValue);
+
+    if (cond.logic === 'OR' || hasOr) {
+      if (!hasOr) {
+        hasOr = true;
+        result = passed;
+      } else {
+        result = result || passed;
+      }
+    } else {
+      result = hasOr ? result && passed : result && passed;
     }
   }
-  return true;
+
+  return result;
 }
 
 // ---- 内部 ----
