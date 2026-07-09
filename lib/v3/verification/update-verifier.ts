@@ -11,6 +11,7 @@ import type { ColumnDef, RowData } from '../../types';
 import type { ExecutionPlan } from '../../v2/execution-plan';
 import type { Verifier, VerificationResult } from './types';
 import { evaluateAll } from '../../v2/predicate';
+import { tryBuildExpressionEvaluator } from '../../v2/executors/UpdateExecutor';
 
 export class UpdateVerifier implements Verifier {
   readonly type = 'update';
@@ -28,6 +29,11 @@ export class UpdateVerifier implements Verifier {
 
     const checks: import('./types').VerificationCheck[] = [];
     const { column, value, conditions } = plan;
+
+    // 如果是表达式更新，构建表达式求值器用于验证
+    const expressionEval = typeof value === 'string'
+      ? tryBuildExpressionEvaluator(value, inputColumns)
+      : null;
 
     // 1) 行数不变
     checks.push({
@@ -59,7 +65,8 @@ export class UpdateVerifier implements Verifier {
 
       if (shouldUpdate) {
         modifiedCount++;
-        if (String(outRow[column]) !== String(value)) {
+        const expected = expressionEval ? expressionEval(inRow) : value;
+        if (String(outRow[column]) !== String(expected)) {
           wrongValueCount++;
         }
       } else {
