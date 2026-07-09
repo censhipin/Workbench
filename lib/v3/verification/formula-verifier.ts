@@ -44,9 +44,10 @@ export class FormulaVerifier implements Verifier {
       return { passed: false, confidence: 0, checks, stats: { rowCount: outputRows.length, columnCount: outputColumns.length } };
     }
 
-    // 2) 列类型检查
+    // 2) 列类型检查 — 跳过文本函数（CONCAT/TEXTJOIN/LEFT/RIGHT 等返回字符串）
+    const TEXT_FUNCTIONS = new Set(['LEFT', 'RIGHT', 'MID', 'LEN', 'CONCAT', 'TEXTJOIN', 'TODAY']);
     const targetColDef = outputColumns.find(c => c.key === targetColumn);
-    if (targetColDef && targetColDef.type === 'number') {
+    if (targetColDef && targetColDef.type === 'number' && !TEXT_FUNCTIONS.has(expressionType!)) {
       let nonNumberCount = 0;
       for (const row of outputRows) {
         const val = row[targetColumn];
