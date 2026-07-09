@@ -11,13 +11,14 @@ import { evaluateAll } from '../predicate';
 import type { Verifier, VerificationResult } from './types';
 import type { ExecutionPlan } from '../execution-plan';
 import type { ColumnDef, RowData } from '@/lib/types';
+import { tryBuildExpressionEvaluator } from '../executors/UpdateExecutor';
 
 export class UpdateVerifier implements Verifier {
   readonly type = 'update';
 
   verify(
     plan: ExecutionPlan,
-    _inputColumns: ColumnDef[],
+    inputColumns: ColumnDef[],
     inputRows: RowData[],
     outputRows: RowData[],
   ): VerificationResult {
@@ -30,6 +31,11 @@ export class UpdateVerifier implements Verifier {
       return { passed: false, checks: [{ name: '行数检查', passed: false, detail: '更新不应改变行数' }] };
     }
 
+    // 如果是表达式更新，构建表达式求值器用于验证
+    const expressionEval = typeof value === 'string'
+      ? tryBuildExpressionEvaluator(value, inputColumns)
+      : null;
+
     var changedCount = 0;
     var unexpectedChanged = 0;
     var expectedUnchanged = 0;
@@ -41,7 +47,12 @@ export class UpdateVerifier implements Verifier {
       if (wasModified) {
         changedCount++;
         if (!shouldModify) unexpectedChanged++;
-        if (outputRows[i][column] !== value) {
+
+        var expectedValue = expressionEval
+          ? expressionEval(inputRows[i])
+          : value;
+
+        if (String(outputRows[i][column]) !== String(expectedValue)) {
           return {
             passed: false,
             checks: [{ name: '值检查', passed: false, detail: '第 ' + (i + 1) + ' 行更新后的值不等于目标值' }],
