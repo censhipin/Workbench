@@ -71,6 +71,10 @@ export default function Home() {
   // ── 审计 ────────────────────────────────────────────────
   const [inferences, setInferences] = useState<InferenceResult[]>([]);
 
+  // ── 审计引导弹窗（检测/检查类指令时弹出） ────────────
+  const [showAuditGuide, setShowAuditGuide] = useState(false);
+  const [auditGuidePrompt, setAuditGuidePrompt] = useState('');
+
   // ── Pipeline Trace ──────────────────────────────────────
   const [pipelineTrace, setPipelineTrace] = useState<PipelineTrace | null>(null);
 
@@ -310,6 +314,40 @@ export default function Home() {
     return auditEngine(currentSheet.rows, currentSheet.columns);
   }, [currentSheet]);
 
+  // ── 审计引导弹窗 ──────────────────────────────────
+  const handleAuditGuideCancel = useCallback(() => {
+    setShowAuditGuide(false);
+    setAuditGuidePrompt('');
+  }, []);
+
+  const handleAuditGuideGo = useCallback(() => {
+    setShowAuditGuide(false);
+    setAuditGuidePrompt('');
+    if (!currentSheet) return;
+    const { getApiKey } = require('@/lib/api-key');
+    const existingKey = getApiKey();
+    if (!existingKey || existingKey.length < 10) {
+      setApiKeyMode('audit');
+      setShowApiKeyDialog(true);
+      return;
+    }
+    setInferences(runQualityCheck(currentSheet.rows, currentSheet.columns).inferences);
+    setShowAudit(true);
+  }, [currentSheet, setApiKeyMode, setShowApiKeyDialog]);
+
+  // 检测/检查类指令拦截 → 弹出审计引导，不走执行
+  const AUDIT_KEYWORDS = ['检查', '检测', '审阅', '质量'];
+  const handleSubmitWrapper = useCallback(() => {
+    const lower = promptText.trim().toLowerCase();
+    const isAuditRequest = AUDIT_KEYWORDS.some(kw => lower.startsWith(kw));
+    if (isAuditRequest && currentSheet) {
+      setAuditGuidePrompt(promptText.trim());
+      setShowAuditGuide(true);
+      return;
+    }
+    handleSubmit();
+  }, [promptText, currentSheet, handleSubmit]);
+
   // ── 上下文信息 ──────────────────────────────────────────
   const contextInfo = selectedFile
     ? `v${currentVersion?.version ?? 0} · 来源：${selectedFile.name} · ${displayRows.length}行×${displayColumns.length}列`
@@ -386,7 +424,7 @@ export default function Home() {
             <BottomBar
               promptText={promptText}
               onPromptChange={setPromptText}
-              onSubmit={handleSubmit}
+              onSubmit={handleSubmitWrapper}
               isRunning={isRunning}
               onUndo={handleUndo}
               onReset={handleReset}
@@ -533,6 +571,50 @@ export default function Home() {
           columns={currentSheet.columns}
           inferences={inferences}
         />
+      )}
+
+      {/* 审计引导弹窗 */}
+      {showAuditGuide && (
+        <div className="fixed inset-0 z-[60] flex items-start justify-center pt-[15vh]" onClick={handleAuditGuideCancel}>
+          <div className="absolute inset-0 bg-black/20" />
+          <div className="relative bg-white rounded-xl shadow-2xl border border-zinc-200 w-[400px] max-w-[90vw] overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="px-5 pt-5 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  </svg>
+                </div>
+                <h3 className="text-sm font-semibold text-zinc-800">数据检测</h3>
+              </div>
+              <p className="text-xs text-zinc-600 mt-3 ml-10 leading-relaxed">
+                检测、检查类操作将跳转到数据检测功能查看详情，不会直接修改数据。
+              </p>
+              {auditGuidePrompt && (
+                <div className="mt-2 ml-10">
+                  <span className="text-[11px] text-zinc-400">你输入了: </span>
+                  <span className="text-[11px] font-medium text-zinc-700 bg-zinc-100 px-1.5 py-0.5 rounded">
+                    {auditGuidePrompt}
+                  </span>
+                </div>
+              )}
+            </div>
+            <div className="px-5 pb-5 pt-2 border-t border-zinc-100 flex items-center justify-end gap-2">
+              <button
+                onClick={handleAuditGuideCancel}
+                className="text-xs px-3 py-1.5 rounded-lg border border-zinc-200 text-zinc-600 hover:bg-zinc-50 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleAuditGuideGo}
+                className="text-xs px-4 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+              >
+                去检测
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Debug mode: Pipeline Trace */}
