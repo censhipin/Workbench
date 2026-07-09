@@ -415,7 +415,7 @@ export default function DataTable({ columns, rows, maxHeight = '500px', highligh
             columns.map(function (col) {
               var cellEditing = editingCell && editingCell.row === i && editingCell.col === col.key;
               var hl = isHighlighted(i, col.key);
-              var cellStyle: any = { padding: '0 6px', borderRight: '1px solid #f0f0f0', textAlign: 'center' };
+              var cellStyle: any = { padding: '0 6px', borderRight: '1px solid #f0f0f0', textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' };
               if (hl) cellStyle.boxShadow = 'inset 0 0 0 2px #ef4444';
               var isEditable = editMode === 'editing' && !!onCellEdit;
 
