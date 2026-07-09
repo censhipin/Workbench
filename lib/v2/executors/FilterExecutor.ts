@@ -103,9 +103,16 @@ function evaluateCondition(
       return compareAsNumber(cellValue, targetValue) < 0;
     case Operator.LTE:
       return compareAsNumber(cellValue, targetValue) <= 0;
-    case Operator.CONTAINS:
+    case Operator.STARTS_WITH:
       if (isNull(cellValue)) return false;
-      return String(cellValue).toLowerCase().includes(String(targetValue ?? '').toLowerCase());
+      return String(cellValue).toLowerCase().startsWith(String(targetValue ?? '').toLowerCase());
+    case Operator.ENDS_WITH:
+      if (isNull(cellValue)) return false;
+      return String(cellValue).toLowerCase().endsWith(String(targetValue ?? '').toLowerCase());
+    case Operator.BETWEEN: {
+      const range = targetValue as { start: unknown; end: unknown };
+      return compareAsNumber(cellValue, range.start) >= 0 && compareAsNumber(cellValue, range.end) <= 0;
+    }
     default:
       return String(cellValue ?? '') === String(targetValue ?? '');
   }
