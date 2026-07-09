@@ -112,15 +112,16 @@ export function evaluateConditions(
     const compareValue = cond.valueColumn ? row[cond.valueColumn] : cond.value;
     const passed = evaluateCondition(row[cond.columnKey], cond.operator, compareValue);
 
-    if (cond.logic === 'OR' || hasOr) {
-      if (!hasOr) {
-        hasOr = true;
-        result = passed;
-      } else {
-        result = result || passed;
-      }
+    if (cond.logic === 'OR') {
+      // OR 条件：与前面积累的 AND 结果组合
+      hasOr = true;
+      result = result || passed;
+    } else if (hasOr) {
+      // OR 模式中遇到 AND：需要 AND 保持
+      result = result && passed;
     } else {
-      result = hasOr ? result && passed : result && passed;
+      // 纯 AND 模式
+      result = result && passed;
     }
   }
 
