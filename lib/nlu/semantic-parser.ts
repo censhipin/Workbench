@@ -1970,6 +1970,11 @@ export class RuleBasedSemanticParser implements SemanticTaskParser {
       params.asc = Boolean(
         lower.includes('升序') || lower.includes('从低到高') || lower.includes('从小到大')
       );
+      // 取前 N 名 / Top N
+      const topMatch = lower.match(/取前\s*(\d+)\s*(?:名|个|位)?/);
+      if (topMatch) {
+        params.limit = parseInt(topMatch[1], 10);
+      }
     }
 
     if (operation === 'filter') {

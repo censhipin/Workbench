@@ -66,6 +66,9 @@ ${colDescriptions}
 按列A从高到低排序 →
 {"action":"sort","columnHint":"列A","direction":"desc"}
 
+按列A从高到低排序取前5名 →
+{"action":"sort","columnHint":"列A","direction":"desc","limit":5}
+
 统计列A的总和 →
 {"action":"aggregate","method":"sum","columnHints":["列A"]}
 

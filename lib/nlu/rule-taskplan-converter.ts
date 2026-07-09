@@ -101,6 +101,11 @@ export function ruleIntentToTaskPlan(intent: TaskIntent): TaskPlan {
     plan.groupByHints = intent.groupBy;
   }
 
+  // limit: 输出行数限制
+  if (intent.params.limit !== undefined) {
+    plan.limit = intent.params.limit as number;
+  }
+
   // conditions: 筛选条件
   if (intent.filters && intent.filters.length > 0) {
     plan.conditions = intent.filters.map(f => mapFilterCondition(f));
