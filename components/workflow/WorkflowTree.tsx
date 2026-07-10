@@ -6,6 +6,7 @@ interface WorkflowTreeProps {
   versions: Version[];
   currentVersionId: string | null;
   onSelectVersion: (id: string) => void;
+  onSelectRawData: () => void;
   onOpenHistory: () => void;
 }
 
@@ -55,7 +56,7 @@ function TreeNodeItem({ node, currentVersionId, onSelectVersion, depth }: {
         {depth > 0 && (
           <span className="text-[#d1d5db] select-none shrink-0">└</span>
         )}
-        <span className="shrink-0 text-[#9ca3af] tabular-nums font-mono text-[10px]">v{node.version.version}</span>
+        <span className="shrink-0 text-[#9ca3af] tabular-nums font-mono text-[10px]">v{node.version.label}</span>
         <span className="truncate">{node.version.operation}</span>
         {isCurrent && (
           <span className="ml-auto shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-[#4f6ef7] text-white font-medium">当前</span>
@@ -72,8 +73,9 @@ function TreeNodeItem({ node, currentVersionId, onSelectVersion, depth }: {
   );
 }
 
-export default function WorkflowTree({ versions, currentVersionId, onSelectVersion, onOpenHistory }: WorkflowTreeProps) {
+export default function WorkflowTree({ versions, currentVersionId, onSelectVersion, onSelectRawData, onOpenHistory }: WorkflowTreeProps) {
   const tree = buildTree(versions);
+  const onRawData = !currentVersionId;
 
   return (
     <div className="flex flex-col h-full">
@@ -100,9 +102,20 @@ export default function WorkflowTree({ versions, currentVersionId, onSelectVersi
           </div>
         ) : (
           <div className="space-y-0.5">
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white border border-[#e9ecef] text-xs text-[#6b7280] font-medium mb-1">
-              <span className="text-base">📄</span>
-              <span>原始数据</span>
+            {/* 原始数据 - 可点击回到原始数据 */}
+            <div
+              onClick={onSelectRawData}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-all text-xs ${
+                onRawData
+                  ? 'bg-[#eef1ff] text-[#1a1a2e] font-medium border-l-[3px] border-l-[#4f6ef7]'
+                  : 'bg-white border border-[#e9ecef] text-[#6b7280] font-medium hover:bg-[#f3f4f6]'
+              }`}
+            >
+              <span className="shrink-0 text-[#9ca3af] font-mono text-[10px]">v0</span>
+              <span className="truncate">原始数据</span>
+              {onRawData && (
+                <span className="ml-auto shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-[#4f6ef7] text-white font-medium">当前</span>
+              )}
             </div>
             {tree.map((node) => (
               <div key={node.version.id} className="relative">

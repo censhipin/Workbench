@@ -224,6 +224,8 @@ export interface Version {
   id: string;
   fileId: string;
   version: number;
+  /** 树路径显示标签，如 "1"、"1.1"、"1.1.1" */
+  label: string;
   parentVersion?: string;
   operation: string;
   plan: object;

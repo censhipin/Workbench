@@ -198,11 +198,15 @@ export interface FormulaPlan {
   /** 参与计算的源列 key 列表 */
   sourceColumns: string[];
   /** 表达式类型 */
-  expressionType: '*' | '/' | '+' | '-' | 'ROUND' | 'ABS' | 'SUM' | 'AVG' | 'IF' | 'LEFT' | 'RIGHT' | 'MID' | 'LEN' | 'YEAR' | 'MONTH' | 'DAY' | 'TODAY' | 'DATEDIF' | 'SUMIF' | 'COUNTIF' | 'AVERAGEIF' | 'CONCAT' | 'TEXTJOIN';
+  expressionType: '*' | '/' | '+' | '-' | 'ROUND' | 'ABS' | 'SUM' | 'AVG' | 'IF' | 'LEFT' | 'RIGHT' | 'MID' | 'LEN' | 'YEAR' | 'MONTH' | 'DAY' | 'TODAY' | 'DATEDIF' | 'SUMIF' | 'COUNTIF' | 'AVERAGEIF' | 'CONCAT' | 'TEXTJOIN' | 'TRIM' | 'UPPER' | 'LOWER' | 'SUBSTITUTE';
   /** 表达式可读描述 */
   expression?: string;
   /** ROUND 的小数位数 */
   decimalPlaces?: number;
+  /** SUBSTITUTE 的搜索文本 */
+  searchText?: string;
+  /** SUBSTITUTE 的替换文本 */
+  replaceText?: string;
   /** 常量操作数（如金额×0.9 中的 0.9） */
   constantOperand?: number;
   /** IF condition column key */

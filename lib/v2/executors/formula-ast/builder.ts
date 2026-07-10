@@ -97,7 +97,7 @@ function stripAssignment(expr: string): string {
 /** 判断 expression 是否包含真正的运算逻辑 */
 function containsRealExpression(expr: string): boolean {
   const clean = stripAssignment(expr);
-  return /[+\-*\/%><=!&|]/.test(clean) || /^(IF|ROUND|ABS|SUM|AVG|MIN|MAX|LEFT|RIGHT|MID|LEN|YEAR|MONTH|DAY|TODAY|DATEDIF|CONCAT|TEXTJOIN)/i.test(clean);
+  return /[+\-*\/%><=!&|]/.test(clean) || /^(IF|ROUND|ABS|SUM|AVG|MIN|MAX|LEFT|RIGHT|MID|LEN|YEAR|MONTH|DAY|TODAY|DATEDIF|CONCAT|TEXTJOIN|TRIM|UPPER|LOWER|SUBSTITUTE)/i.test(clean);
 }
 
 /** 从结构化字段构建简单表达式 */
@@ -218,7 +218,7 @@ function buildStructuredAST(
 // ============================================================
 
 function isTextFunction(type: string): boolean {
-  return ['LEFT', 'RIGHT', 'MID', 'LEN', 'CONCAT', 'TEXTJOIN'].includes(type);
+  return ['LEFT', 'RIGHT', 'MID', 'LEN', 'CONCAT', 'TEXTJOIN', 'TRIM', 'UPPER', 'LOWER', 'SUBSTITUTE'].includes(type);
 }
 
 function executeTextFunction(
@@ -245,6 +245,15 @@ function executeTextFunction(
         case 'TEXTJOIN': {
           const delimiter = String(plan.constantOperand ?? '');
           return plan.sourceColumns.map(k => String(row[k] ?? '')).join(delimiter);
+        }
+        case 'TRIM': return String(text).trim().replace(/\s+/g, ' ');
+        case 'UPPER': return String(text).toUpperCase();
+        case 'LOWER': return String(text).toLowerCase();
+        case 'SUBSTITUTE': {
+          const searchText = String(plan.searchText ?? '');
+          const replaceText = String(plan.replaceText ?? '');
+          if (!searchText) return text;
+          return text.split(searchText).join(replaceText);
         }
         default: return null;
       }

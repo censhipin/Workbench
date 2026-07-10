@@ -71,7 +71,7 @@ export class FormulaExecutor implements OperationExecutor {
         if (inputColumns[i].key === insertAfter) { insertIdx = i + 1; break; }
       }
       resultColumns = inputColumns.slice();
-      const TEXT_EXPR_TYPES = new Set(['CONCAT', 'TEXTJOIN', 'LEFT', 'RIGHT', 'MID', 'LEN', 'TODAY']);
+      const TEXT_EXPR_TYPES = new Set(['CONCAT', 'TEXTJOIN', 'LEFT', 'RIGHT', 'MID', 'LEN', 'TODAY', 'TRIM', 'UPPER', 'LOWER', 'SUBSTITUTE']);
       const isTextResult = expressionType && TEXT_EXPR_TYPES.has(expressionType);
       resultColumns.splice(insertIdx, 0, {
         key: targetColumn,

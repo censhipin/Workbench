@@ -226,6 +226,24 @@ function evaluateFunction(node: import('./types').FunctionCallNode, ctx: EvalCon
       return args.slice(1).map(a => String(evaluate(a, ctx) ?? '')).join(delimiter);
     }
 
+    // ── 文本清洗函数 ──
+    case 'TRIM': {
+      return String(evaluate(args[0], ctx) ?? '').trim().replace(/\s+/g, ' ');
+    }
+    case 'UPPER': {
+      return String(evaluate(args[0], ctx) ?? '').toUpperCase();
+    }
+    case 'LOWER': {
+      return String(evaluate(args[0], ctx) ?? '').toLowerCase();
+    }
+    case 'SUBSTITUTE': {
+      const text = String(evaluate(args[0], ctx) ?? '');
+      const oldText = String(evaluate(args[1], ctx) ?? '');
+      const newText = args.length > 2 ? String(evaluate(args[2], ctx) ?? '') : '';
+      if (!oldText) return text;
+      return text.split(oldText).join(newText);
+    }
+
     // ── 日期函数 ──
     case 'YEAR': {
       const d = parseDateValue(evaluate(args[0], ctx));

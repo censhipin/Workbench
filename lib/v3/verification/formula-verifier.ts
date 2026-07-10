@@ -45,7 +45,7 @@ export class FormulaVerifier implements Verifier {
     }
 
     // 2) 列类型检查 — 跳过文本函数（CONCAT/TEXTJOIN/LEFT/RIGHT 等返回字符串）
-    const TEXT_FUNCTIONS = new Set(['LEFT', 'RIGHT', 'MID', 'LEN', 'CONCAT', 'TEXTJOIN', 'TODAY']);
+    const TEXT_FUNCTIONS = new Set(['LEFT', 'RIGHT', 'MID', 'LEN', 'CONCAT', 'TEXTJOIN', 'TODAY', 'TRIM', 'UPPER', 'LOWER', 'SUBSTITUTE']);
     const targetColDef = outputColumns.find(c => c.key === targetColumn);
     if (targetColDef && targetColDef.type === 'number' && !TEXT_FUNCTIONS.has(expressionType!)) {
       let nonNumberCount = 0;

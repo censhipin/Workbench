@@ -57,7 +57,7 @@ export default function VersionTimeline({
                         ? 'bg-[#4f6ef7] border-[#4f6ef7] shadow-[0_0_0_3px_rgba(79,110,247,0.15)]'
                         : 'bg-white border-[#d1d5db]'
                     }`}>
-                      <span className={`text-[9px] font-bold ${isCurrent ? 'text-white' : 'text-[#9ca3af]'}`}>{v.version}</span>
+                      <span className={`text-[9px] font-bold ${isCurrent ? 'text-white' : 'text-[#9ca3af]'}`}>{v.label}</span>
                     </div>
 
                     {/* Card */}
@@ -72,7 +72,7 @@ export default function VersionTimeline({
                       >
                         <div className="flex items-center gap-1.5 mb-1">
                           <span className={`text-xs font-semibold ${isCurrent ? 'text-[#4f6ef7]' : 'text-[#1a1a2e]'}`}>
-                            v{v.version}
+                            v{v.label}
                           </span>
                           {isCurrent && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#eef1ff] text-[#4f6ef7] font-medium">当前</span>
@@ -134,7 +134,7 @@ export default function VersionTimeline({
         <div className="fixed inset-0 z-50 bg-white flex flex-col">
           <div className="flex items-center justify-between px-6 py-3 border-b border-[#e9ecef] shrink-0">
             <div className="flex items-center gap-3">
-              <h2 className="text-base font-semibold text-[#1a1a2e]">v{fullscreenVersion.version} 数据</h2>
+              <h2 className="text-base font-semibold text-[#1a1a2e]">v{fullscreenVersion.label} 数据</h2>
               <span className="text-xs text-[#9ca3af] bg-[#f3f4f6] px-2 py-0.5 rounded">{fullscreenVersion.rows.length}行×{fullscreenVersion.columns.length}列</span>
               <span className="text-xs text-[#6b7280]">{fullscreenVersion.operation}</span>
             </div>

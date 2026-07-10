@@ -115,9 +115,10 @@ export default function Home() {
     // could also update a shared store
   }, []);
   const onVersionCreated = useCallback((columns: ColumnDef[], rows: RowData[], intent: any) => {
-    const newVersion = createVersion(promptText, intent, columns, rows, undefined);
+    const parentId = currentVersionId || undefined;
+    const newVersion = createVersion(promptText, intent, columns, rows, parentId);
     addVersion(newVersion, { columns: structuredClone(activeDataset?.columns ?? []), rows: structuredClone(activeDataset?.rows ?? []) });
-  }, [promptText, createVersion, addVersion, activeDataset]);
+  }, [promptText, createVersion, addVersion, activeDataset, currentVersionId]);
   const onHistoryAdded = useCallback((item: HistoryItem) => {
     addHistoryItem(item);
   }, [addHistoryItem]);
@@ -134,7 +135,20 @@ export default function Home() {
     setApiKeyMode, setShowApiKeyDialog,
   );
 
-  // ── 导出控制器 ──────────────────────────────────────────
+  // ── Workflow 版本选择/切换 ────────────────────────────
+  const handleSelectRawData = useCallback(() => {
+    setCurrentVersionId(null);
+    if (currentSheet) {
+      setActiveDataset({ columns: currentSheet.columns, rows: currentSheet.rows });
+    }
+    setActiveTab('original');
+  }, [currentSheet, setCurrentVersionId, setActiveDataset, setActiveTab]);
+
+  const wrappedHandleSelectVersion = useCallback((id: string) => {
+    handleSelectVersion(id);
+    const v = versions.find(x => x.id === id);
+    if (v) setActiveDataset({ columns: v.columns, rows: v.rows });
+  }, [handleSelectVersion, versions, setActiveDataset]);
   const { handleExport } = useExportController();
 
   // ── 显示数据 ────────────────────────────────────────────
@@ -357,10 +371,10 @@ export default function Home() {
 
   // ── 上下文信息 ──────────────────────────────────────────
   const contextInfo = selectedFile
-    ? `v${currentVersion?.version ?? 0} · 来源：${selectedFile.name} · ${displayRows.length}行×${displayColumns.length}列`
+    ? `v${currentVersion?.label ?? 0} · 来源：${selectedFile.name} · ${displayRows.length}行×${displayColumns.length}列`
     : undefined;
   const statusBarText = currentVersion
-    ? `当前显示：v${currentVersion.version} ${currentVersion.operation} · ${displayRows.length}行×${displayColumns.length}列`
+    ? `当前显示：v${currentVersion.label} ${currentVersion.operation} · ${displayRows.length}行×${displayColumns.length}列`
     : (selectedFile ? `原始数据 · ${displayRows.length}行×${displayColumns.length}列` : undefined);
 
   const taskFileItems = taskFileIds.map(id => {
@@ -392,7 +406,7 @@ export default function Home() {
       {/* 顶部栏 */}
       <TopBar
         fileName={selectedFile && activeSheet ? `${selectedFile.name} — ${activeSheet}` : selectedFile?.name}
-        versionLabel={currentVersion ? `版本 v${currentVersion.version}` : undefined}
+        versionLabel={currentVersion ? `版本 v${currentVersion.label}` : undefined}
         debugMode={debugMode}
         onToggleDebug={() => setDebugMode(prev => !prev)}
         onOpenSettings={() => { setApiKeyMode('settings'); setShowApiKeyDialog(true); }}
@@ -417,7 +431,8 @@ export default function Home() {
           onAddToTask={handleAddToTask}
           versions={versions}
           currentVersionId={currentVersionId}
-          onSelectVersion={handleSelectVersion}
+          onSelectVersion={wrappedHandleSelectVersion}
+          onSelectRawData={handleSelectRawData}
           onOpenHistory={() => setShowHistory(true)}
         />
 
@@ -493,7 +508,7 @@ export default function Home() {
           {activeTab === 'compare' && currentSheet && (
             <CompareView
               leftLabel="原始数据"
-              rightLabel={currentVersion ? `v${currentVersion.version} 结果` : '处理结果'}
+              rightLabel={currentVersion ? `v${currentVersion.label} 结果` : '处理结果'}
               leftColumns={currentSheet.columns}
               leftRows={currentSheet.rows}
               rightColumns={displayColumns}

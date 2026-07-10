@@ -16,6 +16,7 @@ interface LeftPanelProps {
   versions: Version[];
   currentVersionId: string | null;
   onSelectVersion: (id: string) => void;
+  onSelectRawData: () => void;
   onOpenHistory: () => void;
 }
 
@@ -31,6 +32,7 @@ export default function LeftPanel({
   versions,
   currentVersionId,
   onSelectVersion,
+  onSelectRawData,
   onOpenHistory,
 }: LeftPanelProps) {
   return (
@@ -57,6 +59,7 @@ export default function LeftPanel({
               versions={versions}
               currentVersionId={currentVersionId}
               onSelectVersion={onSelectVersion}
+              onSelectRawData={onSelectRawData}
               onOpenHistory={onOpenHistory}
             />
           </div>
