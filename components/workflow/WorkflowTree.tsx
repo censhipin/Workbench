@@ -32,51 +32,52 @@ function buildTree(versions: Version[]): TreeNode[] {
   return roots;
 }
 
-const COLORS = [
-  { bar: '#4f6ef7', bg: '#eef1ff', line: '#c7d2fe' },
-  { bar: '#16a34a', bg: '#f0fdf4', line: '#bbf7d0' },
-  { bar: '#ea580c', bg: '#fff7ed', line: '#fed7aa' },
-  { bar: '#7c3aed', bg: '#f5f3ff', line: '#ddd6fe' },
-  { bar: '#0891b2', bg: '#ecfeff', line: '#cffafe' },
-  { bar: '#db2777', bg: '#fdf2f8', line: '#fbcfe8' },
-];
+const ACCENT = ['#4f6ef7', '#16a34a', '#ea580c', '#7c3aed', '#0891b2', '#db2777'];
+const ACCENT_BG = ['#eef1ff', '#f0fdf4', '#fff7ed', '#f5f3ff', '#ecfeff', '#fdf2f8'];
 
-/** ── A single row in the tree (dot + label + card) ── */
+/** A single node row: horizontal arm + square + card */
 function NodeRow({
-  label, op, count, isCurrent, color, onClick,
+  label, op, count, isCurrent, accentIdx, onClick,
 }: {
   label: string; op?: string; count?: number; isCurrent: boolean;
-  color: (typeof COLORS)[number]; onClick: () => void;
+  accentIdx: number; onClick: () => void;
 }) {
+  const c = ACCENT[accentIdx % ACCENT.length];
+  const cb = ACCENT_BG[accentIdx % ACCENT_BG.length];
   return (
-    <div className="flex items-stretch cursor-pointer group min-h-[36px]" onClick={onClick}>
-      {/* Left gutter: 20px for the vertical trunk line */}
-      <div className="shrink-0 flex flex-col items-center justify-center" style={{ width: 20 }}>
-        <svg width={20} height={20} className="block shrink-0">
-          <rect x={5} y={2} width={10} height={10} rx={2} fill={isCurrent ? color.bar : '#cbd5e1'} />
-        </svg>
+    <div className="flex items-stretch cursor-pointer group min-h-[34px]" onClick={onClick}>
+      {/* Horizontal arm from trunk to square */}
+      <svg width={20} height={34} className="shrink-0 block">
+        <line x1={0} y1={17} x2={20} y2={17} stroke="#cbd5e1" strokeWidth={2} />
+      </svg>
+      {/* Square */}
+      <div className="shrink-0 flex items-center justify-center" style={{ width: 14 }}>
+        <div
+          className="w-2.5 h-2.5 rotate-45 rounded-sm transition-all duration-150"
+          style={{ backgroundColor: isCurrent ? c : '#cbd5e1' }}
+        />
       </div>
       {/* Card */}
-      <div className="flex-1 min-w-0 py-1 pr-2">
+      <div className="flex-1 min-w-0 py-0.5 pr-2">
         <div
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border transition-all duration-150"
           style={{
-            backgroundColor: isCurrent ? color.bg : '#ffffff',
-            borderColor: isCurrent ? color.bar : '#e9ecef',
+            backgroundColor: isCurrent ? cb : '#ffffff',
+            borderColor: isCurrent ? c : '#e9ecef',
             borderLeftWidth: isCurrent ? 3 : 1,
-            borderLeftColor: isCurrent ? color.bar : '#e9ecef',
+            borderLeftColor: isCurrent ? c : '#e9ecef',
           }}
         >
           <span
             className="shrink-0 font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded"
-            style={{ color: color.bar, backgroundColor: isCurrent ? '#ffffff' : '#f5f5f5' }}
+            style={{ color: c, backgroundColor: isCurrent ? '#ffffff' : '#f5f5f5' }}
           >
             v{label}
           </span>
           {op && <span className="truncate text-gray-700 font-[500]">{op}</span>}
           {count !== undefined && <span className="shrink-0 text-gray-400 text-[10px]">{count}行</span>}
           {isCurrent && (
-            <span className="ml-auto shrink-0 text-[9px] px-1.5 py-0.5 rounded-full font-semibold text-white" style={{ backgroundColor: color.bar }}>
+            <span className="ml-auto shrink-0 text-[9px] px-1.5 py-0.5 rounded-full font-semibold text-white" style={{ backgroundColor: c }}>
               当前
             </span>
           )}
@@ -86,45 +87,34 @@ function NodeRow({
   );
 }
 
-/** ── Recursive children with a continuous dashed border-left as the trunk line ── */
-function ChildBranch({
-  children: nodes, color, currentVersionId, onSelectVersion,
-}: {
-  children: TreeNode[]; color: (typeof COLORS)[number];
+function Branch({ nodes, accentIdx, currentVersionId, onSelectVersion }: {
+  nodes: TreeNode[]; accentIdx: number;
   currentVersionId: string | null; onSelectVersion: (id: string) => void;
 }) {
   return (
-    <div className="relative pl-[20px]">
-      {/* Continuous vertical trunk line — this is THE key fix: border-left on the container */}
-      <div className="absolute left-[9px] top-0 bottom-0 w-0.5 bg-gray-300/80" />
-
-      {nodes.map((node, i) => {
-        const last = i === nodes.length - 1;
-        const isCurrent = node.version.id === currentVersionId;
-        return (
-          <div key={node.version.id} className="relative">
-            {/* Horizontal connector line + square marker */}
-            <div className="absolute left-[-10px] top-[17px] w-[10px] h-0.5 bg-gray-300/80" />
-            <NodeRow
-              label={node.version.label}
-              op={node.version.operation}
-              count={node.version.rows.length}
-              isCurrent={isCurrent}
-              color={color}
-              onClick={() => onSelectVersion(node.version.id)}
-            />
-            {/* Recursive children */}
-            {node.children.length > 0 && (
-              <ChildBranch
-                children={node.children}
-                color={color}
+    <div>
+      {nodes.map((node, i) => (
+        <div key={node.version.id}>
+          <NodeRow
+            label={node.version.label}
+            op={node.version.operation}
+            count={node.version.rows.length}
+            isCurrent={node.version.id === currentVersionId}
+            accentIdx={accentIdx}
+            onClick={() => onSelectVersion(node.version.id)}
+          />
+          {node.children.length > 0 && (
+            <div className="ml-[20px] border-l-2 border-gray-300 pl-[4px]">
+              <Branch
+                nodes={node.children}
+                accentIdx={accentIdx}
                 currentVersionId={currentVersionId}
                 onSelectVersion={onSelectVersion}
               />
-            )}
-          </div>
-        );
-      })}
+            </div>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
@@ -133,13 +123,12 @@ export default function WorkflowTree({
   versions, currentVersionId, onSelectVersion, onSelectRawData, onOpenHistory,
 }: WorkflowTreeProps) {
   const tree = buildTree(versions);
-  const onRawData = !currentVersionId;
+  const onRaw = !currentVersionId;
 
   return (
     <div className="flex flex-col h-full bg-white">
-      {/* Header */}
       <div className="flex items-center gap-2 px-4 py-3 shrink-0 border-b border-gray-100">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2">
           <path d="M12 2L2 7l10 5 10-5-10-5z" />
           <path d="M2 17l10 5 10-5" />
           <path d="M2 12l10 5 10-5" />
@@ -147,7 +136,7 @@ export default function WorkflowTree({
         <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Workflow</span>
       </div>
 
-      <div className="flex-1 overflow-auto px-3 py-3">
+      <div className="flex-1 overflow-auto px-2 py-3">
         {versions.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 gap-2 text-gray-400">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -160,65 +149,56 @@ export default function WorkflowTree({
           </div>
         ) : (
           <div>
-            {/* Row: Original data */}
+            {/* Raw data */}
             <div
-              className="flex items-center gap-1.5 px-1 py-1.5 rounded-lg cursor-pointer transition-all text-xs"
+              className="flex items-center gap-1.5 px-1 py-1.5 rounded-lg cursor-pointer text-xs"
               onClick={onSelectRawData}
-              style={{ backgroundColor: onRawData ? '#f5f5f5' : 'transparent' }}
+              style={{ backgroundColor: onRaw ? '#f5f5f5' : 'transparent' }}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={onRawData ? '#4f6ef7' : '#9ca3af'} strokeWidth="2">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={onRaw ? '#4f6ef7' : '#9ca3af'} strokeWidth="2">
                 <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
               </svg>
               <span className="font-semibold text-gray-700 truncate">原始数据</span>
-              {onRawData && <span className="ml-auto shrink-0 text-[9px] px-1.5 py-0.5 rounded-full bg-gray-500 text-white font-semibold">当前</span>}
+              {onRaw && <span className="ml-auto shrink-0 text-[9px] px-1.5 py-0.5 rounded-full bg-gray-500 text-white font-semibold">当前</span>}
             </div>
 
-            {/* Branches — root nodes + their children */}
-            {tree.map((rootNode, bi) => {
-              const color = COLORS[bi % COLORS.length];
-              const lastBranch = bi === tree.length - 1;
-              return (
-                <div key={rootNode.version.id} className="relative">
-                  {/* Spacer + trunk line between raw data and root node */}
-                  <div className="flex items-stretch" style={{ paddingLeft: 20 }}>
-                    {/* Dashed line segment from raw data to root node's square */}
-                    <svg width={20} height={18} className="shrink-0 block">
-                      <line x1={10} y1={0} x2={10} y2={18} stroke="#cbd5e1" strokeWidth={1.5} strokeDasharray="4 2" />
-                    </svg>
-                    <div className="flex-1" />
-                  </div>
+            {/* Main trunk — a single continuous border-left for ALL root branches */}
+            <div className="ml-[7px] border-l-[2.5px] border-gray-300">
+              {/* Dashed segment from raw data to first branch */}
+              <svg width="16" height="16" className="block ml-[-1px]">
+                <line x1={1} y1={0} x2={1} y2={16} stroke="#cbd5e1" strokeWidth={2} strokeDasharray="3 2" />
+              </svg>
 
-                  {/* Root node row */}
+              {tree.map((rootNode, i) => (
+                <div key={rootNode.version.id}>
                   <NodeRow
                     label={rootNode.version.label}
                     op={rootNode.version.operation}
                     count={rootNode.version.rows.length}
                     isCurrent={rootNode.version.id === currentVersionId}
-                    color={color}
+                    accentIdx={i}
                     onClick={() => onSelectVersion(rootNode.version.id)}
                   />
-
-                  {/* Children branch — the continuous dashed line is ChildBranch's border-left */}
                   {rootNode.children.length > 0 && (
-                    <ChildBranch
-                      children={rootNode.children}
-                      color={color}
-                      currentVersionId={currentVersionId}
-                      onSelectVersion={onSelectVersion}
-                    />
+                    <div className="ml-[20px] border-l-2 border-gray-300 pl-[4px]">
+                      <Branch
+                        nodes={rootNode.children}
+                        accentIdx={i}
+                        currentVersionId={currentVersionId}
+                        onSelectVersion={onSelectVersion}
+                      />
+                    </div>
                   )}
+                  {i < tree.length - 1 && <div className="h-3" />}
                 </div>
-              );
-            })}
+              ))}
+            </div>
           </div>
         )}
       </div>
 
       <div className="px-3 py-2 border-t border-gray-100 shrink-0">
-        <button
-          onClick={onOpenHistory}
-          className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
-        >
+        <button onClick={onOpenHistory} className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs text-gray-500 hover:bg-gray-100 transition-colors">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <circle cx="12" cy="12" r="10" />
             <polyline points="12 6 12 12 16 14" />
