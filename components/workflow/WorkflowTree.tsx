@@ -32,84 +32,99 @@ function buildTree(versions: Version[]): TreeNode[] {
   return roots;
 }
 
-const BRANCH_COLORS = [
-  { bar: '#4f6ef7', tr: '#eef1ff', dot: '#4f6ef7', name: 'indigo' },
-  { bar: '#16a34a', tr: '#f0fdf4', dot: '#16a34a', name: 'green' },
-  { bar: '#ea580c', tr: '#fff7ed', dot: '#ea580c', name: 'orange' },
-  { bar: '#7c3aed', tr: '#f5f3ff', dot: '#7c3aed', name: 'purple' },
-  { bar: '#0891b2', tr: '#ecfeff', dot: '#0891b2', name: 'cyan' },
-  { bar: '#db2777', tr: '#fdf2f8', dot: '#db2777', name: 'pink' },
+const COLORS = [
+  { bar: '#4f6ef7', bg: '#eef1ff', line: '#c7d2fe' },
+  { bar: '#16a34a', bg: '#f0fdf4', line: '#bbf7d0' },
+  { bar: '#ea580c', bg: '#fff7ed', line: '#fed7aa' },
+  { bar: '#7c3aed', bg: '#f5f3ff', line: '#ddd6fe' },
+  { bar: '#0891b2', bg: '#ecfeff', line: '#cffafe' },
+  { bar: '#db2777', bg: '#fdf2f8', line: '#fbcfe8' },
 ];
 
-const STROKE = '#cbd5e1';
-
-// ── Single row of the tree ──
-function TreeRow({
-  label, operation, count, isCurrent, indent, color, isLastOfBranch, isLastOfParent, children, onClick,
+/** ── A single row in the tree (dot + label + card) ── */
+function NodeRow({
+  label, op, count, isCurrent, color, onClick,
 }: {
-  label: string; operation?: string; count?: number; isCurrent: boolean;
-  indent: number; color: (typeof BRANCH_COLORS)[number];
-  isLastOfBranch: boolean; isLastOfParent: boolean;
-  children?: React.ReactNode;
-  onClick: () => void;
+  label: string; op?: string; count?: number; isCurrent: boolean;
+  color: (typeof COLORS)[number]; onClick: () => void;
 }) {
-  // ── Left gutter ──
-  const gutterW = 12 + indent * 20;
-  const dotL = gutterW - 7;
-
   return (
-    <div className="relative">
-      {/* The row */}
-      <div
-        className="relative flex items-start cursor-pointer group py-0.5"
-        onClick={onClick}
-      >
-        {/* Left gutter with tree lines */}
-        <svg width={gutterW} height={34} className="shrink-0 block">
-          {/* ── vertical line 1 ── */}
-          <line x1={5} y1={0} x2={5} y2={34} stroke={STROKE} strokeWidth={1.5} strokeDasharray="4 2" />
-          {/* ── horizontal arm ── */}
-          <line x1={5} y1={17} x2={dotL + 1} y2={17} stroke={STROKE} strokeWidth={1.5} />
-          {/* ── square marker ── */}
-          <rect
-            x={dotL - 5} y={12} width={10} height={10} rx={2}
-            fill={isCurrent ? color.dot : '#cbd5e1'}
-          />
+    <div className="flex items-stretch cursor-pointer group min-h-[36px]" onClick={onClick}>
+      {/* Left gutter: 20px for the vertical trunk line */}
+      <div className="shrink-0 flex flex-col items-center justify-center" style={{ width: 20 }}>
+        <svg width={20} height={20} className="block shrink-0">
+          <rect x={5} y={2} width={10} height={10} rx={2} fill={isCurrent ? color.bar : '#cbd5e1'} />
         </svg>
-
-        {/* Card */}
-        <div className="flex-1 min-w-0 py-1 pr-2">
-          <div
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs border transition-all duration-150"
-            style={{
-              backgroundColor: isCurrent ? color.tr : '#ffffff',
-              borderColor: isCurrent ? color.bar : '#e9ecef',
-              borderLeftWidth: isCurrent ? 3 : 1,
-              borderLeftColor: isCurrent ? color.bar : '#e9ecef',
-            }}
+      </div>
+      {/* Card */}
+      <div className="flex-1 min-w-0 py-1 pr-2">
+        <div
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border transition-all duration-150"
+          style={{
+            backgroundColor: isCurrent ? color.bg : '#ffffff',
+            borderColor: isCurrent ? color.bar : '#e9ecef',
+            borderLeftWidth: isCurrent ? 3 : 1,
+            borderLeftColor: isCurrent ? color.bar : '#e9ecef',
+          }}
+        >
+          <span
+            className="shrink-0 font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded"
+            style={{ color: color.bar, backgroundColor: isCurrent ? '#ffffff' : '#f5f5f5' }}
           >
-            <span
-              className="shrink-0 font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded"
-              style={{ color: color.bar, backgroundColor: isCurrent ? '#ffffff' : '#f5f5f5' }}
-            >
-              v{label}
+            v{label}
+          </span>
+          {op && <span className="truncate text-gray-700 font-[500]">{op}</span>}
+          {count !== undefined && <span className="shrink-0 text-gray-400 text-[10px]">{count}行</span>}
+          {isCurrent && (
+            <span className="ml-auto shrink-0 text-[9px] px-1.5 py-0.5 rounded-full font-semibold text-white" style={{ backgroundColor: color.bar }}>
+              当前
             </span>
-            {operation && <span className="truncate text-gray-700 font-[500]">{operation}</span>}
-            {count !== undefined && <span className="shrink-0 text-gray-400 text-[10px]">{count}行</span>}
-            {isCurrent && (
-              <span
-                className="ml-auto shrink-0 text-[9px] px-1.5 py-0.5 rounded-full font-semibold text-white"
-                style={{ backgroundColor: color.bar }}
-              >
-                当前
-              </span>
-            )}
-          </div>
+          )}
         </div>
       </div>
+    </div>
+  );
+}
 
-      {/* Children */}
-      {children}
+/** ── Recursive children with a continuous dashed border-left as the trunk line ── */
+function ChildBranch({
+  children: nodes, color, currentVersionId, onSelectVersion,
+}: {
+  children: TreeNode[]; color: (typeof COLORS)[number];
+  currentVersionId: string | null; onSelectVersion: (id: string) => void;
+}) {
+  return (
+    <div className="relative pl-[20px]">
+      {/* Continuous vertical trunk line — this is THE key fix: border-left on the container */}
+      <div className="absolute left-[9px] top-0 bottom-0 w-0.5 bg-gray-300/80" />
+
+      {nodes.map((node, i) => {
+        const last = i === nodes.length - 1;
+        const isCurrent = node.version.id === currentVersionId;
+        return (
+          <div key={node.version.id} className="relative">
+            {/* Horizontal connector line + square marker */}
+            <div className="absolute left-[-10px] top-[17px] w-[10px] h-0.5 bg-gray-300/80" />
+            <NodeRow
+              label={node.version.label}
+              op={node.version.operation}
+              count={node.version.rows.length}
+              isCurrent={isCurrent}
+              color={color}
+              onClick={() => onSelectVersion(node.version.id)}
+            />
+            {/* Recursive children */}
+            {node.children.length > 0 && (
+              <ChildBranch
+                children={node.children}
+                color={color}
+                currentVersionId={currentVersionId}
+                onSelectVersion={onSelectVersion}
+              />
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -132,7 +147,6 @@ export default function WorkflowTree({
         <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Workflow</span>
       </div>
 
-      {/* Tree */}
       <div className="flex-1 overflow-auto px-3 py-3">
         {versions.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 gap-2 text-gray-400">
@@ -146,9 +160,9 @@ export default function WorkflowTree({
           </div>
         ) : (
           <div>
-            {/* Raw data root */}
+            {/* Row: Original data */}
             <div
-              className="flex items-center gap-1.5 py-1.5 px-1 rounded-lg cursor-pointer transition-all text-xs"
+              className="flex items-center gap-1.5 px-1 py-1.5 rounded-lg cursor-pointer transition-all text-xs"
               onClick={onSelectRawData}
               style={{ backgroundColor: onRawData ? '#f5f5f5' : 'transparent' }}
             >
@@ -156,113 +170,42 @@ export default function WorkflowTree({
                 <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
               </svg>
               <span className="font-semibold text-gray-700 truncate">原始数据</span>
-              {onRawData && (
-                <span className="ml-auto shrink-0 text-[9px] px-1.5 py-0.5 rounded-full bg-gray-500 text-white font-semibold">当前</span>
-              )}
+              {onRawData && <span className="ml-auto shrink-0 text-[9px] px-1.5 py-0.5 rounded-full bg-gray-500 text-white font-semibold">当前</span>}
             </div>
 
-            {/* Branches */}
+            {/* Branches — root nodes + their children */}
             {tree.map((rootNode, bi) => {
-              const color = BRANCH_COLORS[bi % BRANCH_COLORS.length];
-              const isLastBranch = bi === tree.length - 1;
-
+              const color = COLORS[bi % COLORS.length];
+              const lastBranch = bi === tree.length - 1;
               return (
-                <div key={rootNode.version.id}>
-                  {/* ── Root node of this branch ── */}
-                  <div
-                    className="relative flex items-start cursor-pointer group py-0.5"
-                    onClick={() => onSelectVersion(rootNode.version.id)}
-                  >
-                    {/* Gutter with tree lines */}
-                    <svg width={22} height={34} className="shrink-0 block">
-                      {/* Connecting line from root upward to raw data */}
-                      <line x1={11} y1={0} x2={11} y2={34} stroke={STROKE} strokeWidth={1.5} strokeDasharray="4 2" />
-                      {/* Square marker */}
-                      <rect
-                        x={6} y={12} width={10} height={10} rx={2}
-                        fill={rootNode.version.id === currentVersionId ? color.dot : '#cbd5e1'}
-                      />
+                <div key={rootNode.version.id} className="relative">
+                  {/* Spacer + trunk line between raw data and root node */}
+                  <div className="flex items-stretch" style={{ paddingLeft: 20 }}>
+                    {/* Dashed line segment from raw data to root node's square */}
+                    <svg width={20} height={18} className="shrink-0 block">
+                      <line x1={10} y1={0} x2={10} y2={18} stroke="#cbd5e1" strokeWidth={1.5} strokeDasharray="4 2" />
                     </svg>
-
-                    {/* Card */}
-                    <div className="flex-1 min-w-0 py-1 pr-2">
-                      <div
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs border transition-all duration-150"
-                        style={{
-                          backgroundColor: rootNode.version.id === currentVersionId ? color.tr : '#ffffff',
-                          borderColor: rootNode.version.id === currentVersionId ? color.bar : '#e9ecef',
-                          borderLeftWidth: rootNode.version.id === currentVersionId ? 3 : 1,
-                          borderLeftColor: rootNode.version.id === currentVersionId ? color.bar : '#e9ecef',
-                        }}
-                      >
-                        <span
-                          className="shrink-0 font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded"
-                          style={{
-                            color: color.bar,
-                            backgroundColor: rootNode.version.id === currentVersionId ? '#ffffff' : '#f5f5f5',
-                          }}
-                        >
-                          v{rootNode.version.label}
-                        </span>
-                        <span className="truncate text-gray-700 font-[500]">{rootNode.version.operation}</span>
-                        <span className="shrink-0 text-gray-400 text-[10px]">{rootNode.version.rows.length}行</span>
-                        {rootNode.version.id === currentVersionId && (
-                          <span className="ml-auto shrink-0 text-[9px] px-1.5 py-0.5 rounded-full font-semibold text-white" style={{ backgroundColor: color.bar }}>
-                            当前
-                          </span>
-                        )}
-                      </div>
-                    </div>
+                    <div className="flex-1" />
                   </div>
 
-                  {/* ── Children of root ── */}
+                  {/* Root node row */}
+                  <NodeRow
+                    label={rootNode.version.label}
+                    op={rootNode.version.operation}
+                    count={rootNode.version.rows.length}
+                    isCurrent={rootNode.version.id === currentVersionId}
+                    color={color}
+                    onClick={() => onSelectVersion(rootNode.version.id)}
+                  />
+
+                  {/* Children branch — the continuous dashed line is ChildBranch's border-left */}
                   {rootNode.children.length > 0 && (
-                    <div>
-                      {rootNode.children.map((child, ci) => {
-                        const lastChild = ci === rootNode.children.length - 1;
-                        return (
-                          <div key={child.version.id}>
-                            {/* Striped line from root to first child */}
-                            {ci === 0 && (
-                              <svg width={22} height={12} className="block">
-                                <line x1={11} y1={0} x2={11} y2={12} stroke={STROKE} strokeWidth={1.5} strokeDasharray="4 2" />
-                              </svg>
-                            )}
-                            <TreeRow
-                              label={child.version.label}
-                              operation={child.version.operation}
-                              count={child.version.rows.length}
-                              isCurrent={child.version.id === currentVersionId}
-                              indent={1}
-                              color={color}
-                              isLastOfBranch={lastChild}
-                              isLastOfParent={lastChild}
-                              onClick={() => onSelectVersion(child.version.id)}
-                            >
-                              {/* Grandchildren */}
-                              {child.children.length > 0 && (
-                                <div>
-                                  {child.children.map((gc, gci) => (
-                                    <TreeRow
-                                      key={gc.version.id}
-                                      label={gc.version.label}
-                                      operation={gc.version.operation}
-                                      count={gc.version.rows.length}
-                                      isCurrent={gc.version.id === currentVersionId}
-                                      indent={2}
-                                      color={color}
-                                      isLastOfBranch={gci === child.children.length - 1}
-                                      isLastOfParent={lastChild && gci === child.children.length - 1}
-                                      onClick={() => onSelectVersion(gc.version.id)}
-                                    />
-                                  ))}
-                                </div>
-                              )}
-                            </TreeRow>
-                          </div>
-                        );
-                      })}
-                    </div>
+                    <ChildBranch
+                      children={rootNode.children}
+                      color={color}
+                      currentVersionId={currentVersionId}
+                      onSelectVersion={onSelectVersion}
+                    />
                   )}
                 </div>
               );
@@ -271,7 +214,6 @@ export default function WorkflowTree({
         )}
       </div>
 
-      {/* Footer */}
       <div className="px-3 py-2 border-t border-gray-100 shrink-0">
         <button
           onClick={onOpenHistory}
