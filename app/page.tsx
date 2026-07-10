@@ -481,6 +481,9 @@ export default function Home() {
                 highlightCell={highlightCell}
                 onCellEdit={handleCellEdit}
                 scrollToRow={scrollToRow}
+                selectedFileId={selectedFile.id}
+                taskSheets={taskSheets}
+                onAddToTask={handleAddToTask}
               />
             ) : (
               <div className="flex-1 flex items-center justify-center">

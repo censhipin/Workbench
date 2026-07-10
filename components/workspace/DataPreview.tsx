@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { SheetInfo, EditMode, CellHighlight, ColumnDef, RowData } from '@/lib/types';
+import { SheetInfo, EditMode, CellHighlight, ColumnDef, RowData, TaskSheetRef } from '@/lib/types';
 import DataTable from '@/components/common/DataTable';
 import SheetTabs from '@/components/common/SheetTabs';
 import EmptyState from '@/components/common/EmptyState';
@@ -19,6 +19,9 @@ interface DataPreviewProps {
   highlightCell?: CellHighlight | null;
   onCellEdit?: (rowIndex: number, colKey: string, newValue: string) => void;
   scrollToRow?: number | null;
+  selectedFileId?: string | null;
+  taskSheets?: TaskSheetRef[];
+  onAddToTask?: (fileId: string, sheetName: string) => void;
 }
 
 interface TableState {
@@ -39,6 +42,9 @@ export default function DataPreview(props: DataPreviewProps) {
   var highlightCell = props.highlightCell;
   var onCellEdit = props.onCellEdit;
   var scrollToRow = props.scrollToRow;
+  var selectedFileId = props.selectedFileId;
+  var taskSheets = props.taskSheets ?? [];
+  var onAddToTask = props.onAddToTask;
 
   // ── Local table state for drag/add operations ──────────────────────────
   // Derived from props but independently mutable for UI-only changes.
@@ -198,7 +204,10 @@ export default function DataPreview(props: DataPreviewProps) {
         React.createElement('div', { className: 'min-w-0' },
           React.createElement('div', { className: 'flex items-center gap-3 flex-wrap' },
             React.createElement('h2', { className: 'text-sm font-semibold text-zinc-800 truncate' }, fileName),
-            sheets.length > 1 && React.createElement(SheetTabs, { sheets: sheets, activeSheet: activeSheet, onSelect: onSheetChange })
+            sheets.length > 1 && React.createElement(SheetTabs, {
+              sheets: sheets, activeSheet: activeSheet, onSelect: onSheetChange,
+              fileId: selectedFileId ?? '', taskSheets: taskSheets, onAddToTask: onAddToTask ?? (() => {}),
+            })
           ),
           React.createElement('p', { className: 'text-[11px] text-zinc-400 mt-0.5' }, displayRows.length + ' 行 x ' + displayColumns.length + ' 列')
         )
