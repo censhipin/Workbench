@@ -98,7 +98,7 @@ export default function VersionTimeline({
 
       {contextMenu && (
         <div className="fixed inset-0 z-50" onClick={() => setContextMenu(null)}>
-          <div className="absolute bg-white rounded-xl shadow-lg border border-[#e9ecef] py-1.5 w-44" style={{ left: contextMenu.x, top: contextMenu.y }} onClick={e => e.stopPropagation()}>
+          <div className="absolute bg-white rounded-xl shadow-lg border border-[#e9ecef] py-1.5 w-44" style={{ right: Math.max(8, window.innerWidth - contextMenu.x), top: contextMenu.y }} onClick={e => e.stopPropagation()}>
             <button onClick={() => { onSetCurrent(contextMenu.id); setContextMenu(null); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs text-[#1a1a2e] hover:bg-[#f3f4f6] transition-colors">
               <span>📌</span>
               <span>设为当前</span>
