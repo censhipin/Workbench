@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { ColumnDef, RowData, ResultSummary } from '@/lib/types';
+import { TABLE_STYLES } from '@/lib/tableStyles';
 import DataTable from '@/components/common/DataTable';
 import EmptyState from '@/components/common/EmptyState';
 import Badge from '@/components/common/Badge';
@@ -29,8 +30,19 @@ export default function ResultPreview({ columns, rows, summary, beforeData, onEx
   const [fullscreen, setFullscreen] = useState(false);
   const [localColumns, setLocalColumns] = useState<ColumnDef[] | null>(null);
   const [localRows, setLocalRows] = useState<RowData[] | null>(null);
+  const [styleIndex, setStyleIndex] = useState(-1);
+  const [styleOpen, setStyleOpen] = useState(false);
+  const styleRef = useRef<HTMLDivElement>(null);
   const displayColumns = localColumns || columns;
   const displayRows = localRows || rows;
+
+  useEffect(function () {
+    function onClick(e: MouseEvent) {
+      if (styleRef.current && !styleRef.current.contains(e.target as Node)) setStyleOpen(false);
+    }
+    document.addEventListener('mousedown', onClick);
+    return function () { document.removeEventListener('mousedown', onClick); };
+  }, []);
 
   const handleColumnReorder = useCallback(function (fromIndex: number, toIndex: number) {
     var cols = (localColumns || columns).slice();
@@ -110,6 +122,53 @@ export default function ResultPreview({ columns, rows, summary, beforeData, onEx
               )}
             </div>
             <div className="flex items-center gap-2">
+              <div className="relative" ref={styleRef}>
+                <button
+                  onClick={() => setStyleOpen(!styleOpen)}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-zinc-200 text-zinc-600 hover:bg-zinc-50 transition-colors"
+                  title="表格样式"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="7" height="7" rx="1" />
+                    <rect x="14" y="3" width="7" height="7" rx="1" />
+                    <rect x="3" y="14" width="7" height="7" rx="1" />
+                    <rect x="14" y="14" width="7" height="7" rx="1" />
+                  </svg>
+                  样式
+                  {styleIndex >= 0 && (
+                    <span className="w-3 h-3 rounded inline-block" style={{ background: TABLE_STYLES[styleIndex].headerBg }} />
+                  )}
+                </button>
+                {styleOpen && (
+                  <div className="absolute right-0 top-full mt-1 z-50 bg-white rounded-xl shadow-xl border border-zinc-200 py-1.5 w-52 max-h-80 overflow-y-auto">
+                    <div className="px-3 py-1 text-[10px] text-zinc-400 font-medium">表格样式</div>
+                    {TABLE_STYLES.map(function (s, i) {
+                      return (
+                        <button
+                          key={i}
+                          onClick={() => { setStyleIndex(i); setStyleOpen(false); }}
+                          className={'w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-left transition-colors ' + (styleIndex === i ? 'bg-blue-50 text-blue-700' : 'text-zinc-600 hover:bg-zinc-50')}
+                        >
+                          <div className="flex items-center gap-0.5 rounded overflow-hidden border shrink-0" style={{ borderColor: s.borderColor }}>
+                            <div className="w-4 h-4 flex items-center justify-center text-[8px] font-bold text-white" style={{ background: s.headerBg }}>A</div>
+                            <div className="w-4 h-4" style={{ background: s.rowEvenBg }} />
+                            <div className="w-4 h-4" style={{ background: s.rowOddBg }} />
+                          </div>
+                          {s.name}
+                        </button>
+                      );
+                    })}
+                    {styleIndex >= 0 && (
+                      <button
+                        onClick={() => { setStyleIndex(-1); setStyleOpen(false); }}
+                        className="w-full text-left px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-600 hover:bg-zinc-50 border-t border-zinc-100 mt-1 pt-1.5"
+                      >
+                        清除样式
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
               <button onClick={onExport} className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-md border border-zinc-200 text-zinc-600 hover:bg-zinc-50 transition-colors">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>
                 导出
@@ -121,7 +180,7 @@ export default function ResultPreview({ columns, rows, summary, beforeData, onEx
             </div>
           </div>
           <div className="flex-1 min-h-0 overflow-auto p-6">
-            <DataTable columns={displayColumns} rows={rows} maxHeight="100%" onColumnReorder={handleColumnReorder} onRowReorder={onRowReorder} resizable={true} />
+            <DataTable columns={displayColumns} rows={rows} maxHeight="100%" onColumnReorder={handleColumnReorder} onRowReorder={onRowReorder} resizable={true} stylePreset={styleIndex >= 0 ? TABLE_STYLES[styleIndex] : undefined} />
           </div>
           <div className="flex items-center gap-4 px-6 py-2.5 border-t border-zinc-200 shrink-0 text-xs text-zinc-400">
             <span>总行数：{rows.length}</span>

@@ -1,7 +1,8 @@
-﻿'use client';
+'use client';
 
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { ColumnDef, RowData, EditMode, CellHighlight } from '@/lib/types';
+import { TableStyle } from '@/lib/tableStyles';
 
 interface DataTableProps {
   columns: ColumnDef[];
@@ -21,6 +22,7 @@ interface DataTableProps {
   onRemoveColumn?: (columnKey: string) => void;
   onRemoveRow?: (rowIndex: number) => void;
   resizable?: boolean;
+  stylePreset?: TableStyle;
 }
 
 function formatCell(value: string | number | null) {
@@ -42,7 +44,7 @@ var BUFFER = 10;
 var ADD_COL_W = 36;
 var HEADER_H = 46;
 
-export default function DataTable({ columns, rows, maxHeight = '500px', highlightRow, onRowClick, resetKey, editMode, highlightCell, onCellEdit, scrollToRow, onRowReorder, onColumnReorder, onAddColumn, onAddRow, onRemoveColumn, onRemoveRow, resizable }: DataTableProps) {
+export default function DataTable({ columns, rows, maxHeight = '500px', highlightRow, onRowClick, resetKey, editMode, highlightCell, onCellEdit, scrollToRow, onRowReorder, onColumnReorder, onAddColumn, onAddRow, onRemoveColumn, onRemoveRow, resizable, stylePreset }: DataTableProps) {
   var scrollRef = useRef<HTMLDivElement>(null);
   var [scrollY, setScrollY] = useState(0);
   var [vh, setVh] = useState(500);
@@ -267,19 +269,34 @@ export default function DataTable({ columns, rows, maxHeight = '500px', highligh
     React.createElement('circle', { cx: 9, cy: 9, r: 1.5, fill: 'currentColor' })
   );
 
+  // ── Style preset overrides ──
+  var sp = stylePreset;
+  var makeContainerStyle = function (base: React.CSSProperties): React.CSSProperties {
+    return sp ? { ...base, borderColor: sp.borderColor } : base;
+  };
+  var makeHeaderCellStyle = function (base: React.CSSProperties): React.CSSProperties {
+    return sp ? { ...base, background: sp.headerBg, color: sp.headerColor, borderColor: sp.borderColor } : base;
+  };
+  var makeRowStyle = function (isEven: boolean): React.CSSProperties {
+    return sp ? { background: isEven ? sp.rowEvenBg : sp.rowOddBg, borderColor: sp.borderColor } : {};
+  };
+  var makeCellStyle = function (base: React.CSSProperties): React.CSSProperties {
+    return sp ? { ...base, borderColor: sp.borderColor } : base;
+  };
+
   return React.createElement('div', {
     ref: scrollRef,
     className: 'overflow-auto rounded-lg border border-zinc-200',
-    style: { maxHeight: maxHeight, height: maxHeight, contain: 'strict' },
+    style: makeContainerStyle({ maxHeight: maxHeight, height: maxHeight, contain: 'strict' as any }),
     onScroll: onScroll,
   },
-    React.createElement('table', { className: 'min-w-full text-sm border-collapse', style: { tableLayout: 'auto' } },
+    React.createElement('table', { className: 'min-w-full text-sm border-collapse', style: { tableLayout: 'auto' as any } },
       React.createElement('thead', null,
         // ── Row 1: column letters (not draggable) ──
         React.createElement('tr', null,
           React.createElement('th', {
             className: 'sticky top-0 z-30 bg-zinc-50 border-b border-r border-zinc-200 select-none',
-            style: { width: ROW_NO_W, minWidth: ROW_NO_W, height: 20, padding: 0, fontSize: 10 }
+            style: makeHeaderCellStyle({ width: ROW_NO_W, minWidth: ROW_NO_W, height: 20, padding: 0, fontSize: 10 })
           }),
           columns.map(function (col, ci) {
             var w = colWidths[col.key] || undefined;
@@ -287,13 +304,13 @@ export default function DataTable({ columns, rows, maxHeight = '500px', highligh
               key: 'l-' + col.key,
               'data-col-index': ci,
               className: 'sticky top-0 z-20 bg-zinc-50 text-center font-mono text-[10px] text-zinc-400 font-semibold select-none border-b border-r border-zinc-200',
-              style: { height: 20, padding: '0 6px', minWidth: 40, width: w }
+              style: makeHeaderCellStyle({ height: 20, padding: '0 6px', minWidth: 40, width: w })
             }, colLetter(ci));
           }),
           hasAddCol ? React.createElement('th', {
             key: '__add_col_letter__',
             className: 'sticky top-0 z-20 bg-zinc-50 border-b border-zinc-200',
-            style: { width: ADD_COL_W, minWidth: ADD_COL_W, height: 20, padding: 0 }
+            style: makeHeaderCellStyle({ width: ADD_COL_W, minWidth: ADD_COL_W, height: 20, padding: 0 })
           }) : null
         ),
         // ── Row 2: column titles (draggable) ──
@@ -305,7 +322,7 @@ export default function DataTable({ columns, rows, maxHeight = '500px', highligh
         },
           React.createElement('th', {
             className: 'sticky top-[20px] z-30 bg-zinc-100 border-b border-r border-zinc-200 select-none',
-            style: { width: ROW_NO_W, minWidth: ROW_NO_W, height: 26, padding: 0 }
+            style: makeHeaderCellStyle({ width: ROW_NO_W, minWidth: ROW_NO_W, height: 26, padding: 0 })
           }),
           columns.map(function (col, ci) {
             var isOver = dragFeedback && dragFeedback.type === 'column' && dragFeedback.overIndex === ci;
@@ -319,14 +336,14 @@ export default function DataTable({ columns, rows, maxHeight = '500px', highligh
               onDragStart: hasColDrag ? handleColDragStart : undefined,
               className: 'sticky top-[20px] z-20 bg-zinc-100 text-center text-[12px] text-zinc-600 font-medium select-none border-b border-r border-zinc-200 whitespace-nowrap group'
                 + (hasColDrag ? ' cursor-grab active:cursor-grabbing' : ''),
-              style: {
+              style: makeHeaderCellStyle({
                 height: 26,
                 padding: '0 6px',
                 minWidth: 40,
                 width: w,
                 borderLeft: isOver ? '2px solid #3b82f6' : undefined,
                 opacity: isSource ? 0.4 : undefined
-              }
+              })
             },
               React.createElement('div', { className: 'flex items-center justify-center gap-0.5 relative' },
                 React.createElement('span', { className: 'truncate' }, col.title),
@@ -353,7 +370,7 @@ export default function DataTable({ columns, rows, maxHeight = '500px', highligh
           hasAddCol ? React.createElement('th', {
             key: '__add_col__',
             className: 'sticky top-[20px] z-20 bg-zinc-100 border-b border-zinc-200',
-            style: { width: ADD_COL_W, minWidth: ADD_COL_W, height: 26, padding: 0 }
+            style: makeHeaderCellStyle({ width: ADD_COL_W, minWidth: ADD_COL_W, height: 26, padding: 0 })
           },
             React.createElement('button', {
               onClick: onAddColumn,
@@ -383,7 +400,8 @@ export default function DataTable({ columns, rows, maxHeight = '500px', highligh
             style: {
               height: ROW_H,
               borderTop: isOver ? '2px solid #3b82f6' : undefined,
-              opacity: isSource ? 0.4 : undefined
+              opacity: isSource ? 0.4 : undefined,
+              ...makeRowStyle(i % 2 === 0)
             }
           },
             // Drag handle + row number
@@ -393,7 +411,7 @@ export default function DataTable({ columns, rows, maxHeight = '500px', highligh
               onDragStart: hasRowDrag ? handleRowDragStart : undefined,
               className: 'text-center font-mono text-[11px] text-zinc-300 select-none border-b border-r border-zinc-100 bg-zinc-50/50'
                 + (hasRowDrag || onRemoveRow ? ' group' : '') + (hasRowDrag ? ' cursor-grab active:cursor-grabbing' : ''),
-              style: { width: ROW_NO_W, minWidth: ROW_NO_W, padding: '0 2px' }
+              style: makeCellStyle({ width: ROW_NO_W, minWidth: ROW_NO_W, padding: '0 2px' })
             },
               React.createElement('div', { className: 'flex items-center justify-center gap-0.5' },
                 hasRowDrag ? dragHandleSvg : null,
@@ -420,7 +438,7 @@ export default function DataTable({ columns, rows, maxHeight = '500px', highligh
               var isEditable = editMode === 'editing' && !!onCellEdit;
 
               if (cellEditing) {
-                return React.createElement('td', { key: col.key, className: 'border-b border-zinc-100 overflow-visible', style: cellStyle },
+                return React.createElement('td', { key: col.key, className: 'border-b border-zinc-100 overflow-visible', style: makeCellStyle(cellStyle) },
                   React.createElement('input', {
                     autoFocus: true,
                     type: 'text',
@@ -437,7 +455,7 @@ export default function DataTable({ columns, rows, maxHeight = '500px', highligh
               return React.createElement('td', {
                 key: col.key,
                 className: 'border-b border-zinc-100 text-sm' + (isEditable ? ' cursor-pointer hover:bg-blue-50/30' : '') + (col.type === 'number' ? ' tabular-nums' : ''),
-                style: cellStyle,
+                style: makeCellStyle(cellStyle),
                 onDoubleClick: isEditable ? function () { handleDoubleClick(i, col.key, row[col.key]); } : undefined
               }, formatCell(row[col.key]));
             }),
@@ -445,7 +463,7 @@ export default function DataTable({ columns, rows, maxHeight = '500px', highligh
             hasAddCol ? React.createElement('td', {
               key: '__add_col_cell__',
               className: 'border-b border-zinc-100',
-              style: { width: ADD_COL_W, minWidth: ADD_COL_W, padding: 0 }
+              style: makeCellStyle({ width: ADD_COL_W, minWidth: ADD_COL_W, padding: 0 })
             }) : null
           );
         }),
