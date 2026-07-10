@@ -65,6 +65,7 @@ export default function Home() {
 
   // ── UI ──────────────────────────────────────────────────
   const [editMode, setEditMode] = useState<EditMode>('locked');
+  const [arrangeMode, setArrangeMode] = useState(false);
   const [highlightCell, setHighlightCell] = useState<CellHighlight | null>(null);
   const [scrollToRow, setScrollToRow] = useState<number | null>(null);
 
@@ -504,6 +505,8 @@ export default function Home() {
               resetKey={resultKey}
               error={error}
               isRunning={isRunning}
+              arrangeMode={arrangeMode}
+              onToggleArrange={() => setArrangeMode(prev => !prev)}
             />
           )}
 

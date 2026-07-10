@@ -20,14 +20,17 @@ interface ResultPreviewProps {
   isRunning?: boolean;
   onColumnReorder?: (fromIndex: number, toIndex: number) => void;
   onRowReorder?: (fromIndex: number, toIndex: number) => void;
+  arrangeMode?: boolean;
+  onToggleArrange?: () => void;
 }
 
-export default function ResultPreview({ columns, rows, summary, beforeData, onExport, flexBasis = '1', resetKey, error, isRunning, onColumnReorder: externalColReorder, onRowReorder }: ResultPreviewProps) {
+export default function ResultPreview({ columns, rows, summary, beforeData, onExport, flexBasis = '1', resetKey, error, isRunning, onColumnReorder: externalColReorder, onRowReorder, arrangeMode, onToggleArrange }: ResultPreviewProps) {
   const hasResult = rows.length > 0;
   const [fullscreen, setFullscreen] = useState(false);
-  // Local column reorder for browsing (no cell content change)
   const [localColumns, setLocalColumns] = useState<ColumnDef[] | null>(null);
+  const [localRows, setLocalRows] = useState<RowData[] | null>(null);
   const displayColumns = localColumns || columns;
+  const displayRows = localRows || rows;
 
   const handleColumnReorder = useCallback(function (fromIndex: number, toIndex: number) {
     var cols = (localColumns || columns).slice();
@@ -36,6 +39,14 @@ export default function ResultPreview({ columns, rows, summary, beforeData, onEx
     setLocalColumns(cols);
     if (externalColReorder) externalColReorder(fromIndex, toIndex);
   }, [localColumns, columns, externalColReorder]);
+
+  const handleRowReorder = useCallback(function (fromIndex: number, toIndex: number) {
+    var rs = (localRows || rows).slice();
+    var moved = rs.splice(fromIndex, 1)[0];
+    rs.splice(toIndex, 0, moved);
+    setLocalRows(rs);
+    if (onRowReorder) onRowReorder(fromIndex, toIndex);
+  }, [localRows, rows, onRowReorder]);
 
   return (
     <>
@@ -47,6 +58,18 @@ export default function ResultPreview({ columns, rows, summary, beforeData, onEx
           </div>
           {hasResult && (
             <div className="flex items-center gap-1.5">
+              {onToggleArrange && (
+                <button
+                  onClick={onToggleArrange}
+                  className={`flex items-center gap-1 text-xs px-2 py-1 rounded-md border transition-colors shrink-0 ${arrangeMode ? 'bg-blue-50 text-blue-600 border-blue-200' : 'text-zinc-500 border-transparent hover:bg-zinc-100'}`}
+                  title={arrangeMode ? '退出排列模式' : '排列模式 — 拖动行列'}
+                >
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3" />
+                  </svg>
+                  排列
+                </button>
+              )}
               <button onClick={() => setFullscreen(true)} className="flex items-center gap-1 text-xs px-2 py-1 rounded-md text-zinc-500 hover:bg-zinc-100 border border-transparent transition-colors" title="全屏查看">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3" /></svg>
                 全屏
@@ -63,7 +86,7 @@ export default function ResultPreview({ columns, rows, summary, beforeData, onEx
               <span className="text-sm text-zinc-500">处理中...</span>
             </div>
           ) : hasResult ? (
-            <div className="h-full"><DataTable columns={displayColumns} rows={rows} maxHeight="100%" resetKey={resetKey} onColumnReorder={handleColumnReorder} onRowReorder={onRowReorder} resizable={true} /></div>
+            <div className="h-full"><DataTable columns={displayColumns} rows={displayRows} maxHeight="100%" resetKey={resetKey} onColumnReorder={handleColumnReorder} onRowReorder={handleRowReorder} resizable={true} editMode={arrangeMode ? 'editing' : 'locked'} /></div>
           ) : error ? (
               <EmptyState icon="⚠️" title="执行失败" description={error} />
             ) : (
