@@ -424,7 +424,7 @@ export default function Home() {
           files={files}
           selectedFileId={selectedFileId}
           selectedSheet={activeSheet}
-          taskSheets={taskSheets}
+          taskFileIds={[]}
           onSelectFile={(id, sheet) => {
             setSelectedFileId(id);
             if (sheet) setActiveSheet(sheet);
@@ -433,7 +433,7 @@ export default function Home() {
           }}
           onAddFile={handleAddFile}
           onRemoveFile={handleRemoveFile}
-          onAddToTask={(fileId, sheetName) => handleAddToTask(fileId, sheetName)}
+          onAddToTask={(id) => handleAddToTask(id, '')}
           versions={versions}
           currentVersionId={currentVersionId}
           onSelectVersion={wrappedHandleSelectVersion}

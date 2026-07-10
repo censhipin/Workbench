@@ -2,17 +2,17 @@
 
 import Workspace from '@/components/workspace/Workspace';
 import WorkflowTree from '@/components/workflow/WorkflowTree';
-import { WorkbenchFile, Version, TaskSheetRef } from '@/lib/types';
+import { WorkbenchFile, Version } from '@/lib/types';
 
 interface LeftPanelProps {
   files: WorkbenchFile[];
   selectedFileId: string | null;
   selectedSheet?: string | null;
-  taskSheets?: TaskSheetRef[];
+  taskFileIds?: string[];
   onSelectFile: (id: string, sheet?: string) => void;
   onAddFile: () => void;
   onRemoveFile: (id: string) => void;
-  onAddToTask: (fileId: string, sheetName: string) => void;
+  onAddToTask?: (id: string) => void;
   versions: Version[];
   currentVersionId: string | null;
   onSelectVersion: (id: string) => void;
@@ -24,7 +24,7 @@ export default function LeftPanel({
   files,
   selectedFileId,
   selectedSheet,
-  taskSheets = [],
+  taskFileIds = [],
   onSelectFile,
   onAddFile,
   onRemoveFile,
@@ -44,7 +44,7 @@ export default function LeftPanel({
               files={files}
               selectedFileId={selectedFileId}
               selectedSheet={selectedSheet}
-              taskSheets={taskSheets}
+              taskFileIds={taskFileIds}
               onSelectFile={onSelectFile}
               onAddFile={onAddFile}
               onRemoveFile={onRemoveFile}
