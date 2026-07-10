@@ -104,18 +104,14 @@ export function useExecutionController(
     }));
     setExecutionSteps(waitingSteps);
 
+    // 检查是否有步骤
     if (engineResult.steps.length > 0) {
-      await new Promise(r => setTimeout(r, 100));
-      for (const finalStep of engineResult.steps) {
-        setExecutionSteps(prev => prev.map(s =>
-          s.id === finalStep.id ? { ...finalStep, status: 'executing' as StepStatus, subItems: undefined } : s
-        ));
-        await new Promise(r => setTimeout(r, 480));
-        setExecutionSteps(prev => prev.map(s =>
-          s.id === finalStep.id ? finalStep : s
-        ));
-        await new Promise(r => setTimeout(r, 180));
-      }
+      // 立即标记所有步骤为已完成（不再人为延迟）
+      setExecutionSteps(engineResult.steps.map(s => ({
+        ...s,
+        status: 'completed' as StepStatus,
+        subItems: undefined,
+      })));
     }
 
     if (engineResult.success && engineResult.resultData) {

@@ -118,7 +118,9 @@ export default function Home() {
     const parentId = currentVersionId || undefined;
     const newVersion = createVersion(promptText, intent, columns, rows, parentId);
     addVersion(newVersion, { columns: structuredClone(activeDataset?.columns ?? []), rows: structuredClone(activeDataset?.rows ?? []) });
-  }, [promptText, createVersion, addVersion, activeDataset, currentVersionId]);
+    // 切换到新版本数据，后续操作在该结果上执行
+    setActiveDataset({ columns, rows });
+  }, [promptText, createVersion, addVersion, activeDataset, currentVersionId, setActiveDataset]);
   const onHistoryAdded = useCallback((item: HistoryItem) => {
     addHistoryItem(item);
   }, [addHistoryItem]);

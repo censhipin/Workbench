@@ -13,21 +13,19 @@ interface WorkflowTreeProps {
 interface TreeNode {
   version: Version;
   children: TreeNode[];
-  depth: number;
+  parentVersion: string | undefined;
 }
 
 function buildTree(versions: Version[]): TreeNode[] {
   const map = new Map<string, TreeNode>();
   const roots: TreeNode[] = [];
   for (const v of versions) {
-    map.set(v.id, { version: v, children: [], depth: 0 });
+    map.set(v.id, { version: v, children: [], parentVersion: v.parentVersion });
   }
   for (const v of versions) {
     const node = map.get(v.id)!;
     if (v.parentVersion && map.has(v.parentVersion)) {
-      const parent = map.get(v.parentVersion)!;
-      node.depth = parent.depth + 1;
-      parent.children.push(node);
+      map.get(v.parentVersion)!.children.push(node);
     } else {
       roots.push(node);
     }
@@ -35,27 +33,27 @@ function buildTree(versions: Version[]): TreeNode[] {
   return roots;
 }
 
-function TreeNodeItem({ node, currentVersionId, onSelectVersion, depth }: {
+function TreeNodeItem({ node, currentVersionId, onSelectVersion, isLast, prefix }: {
   node: TreeNode;
   currentVersionId: string | null;
   onSelectVersion: (id: string) => void;
-  depth: number;
+  isLast: boolean;
+  prefix: string;
 }) {
   const isCurrent = node.version.id === currentVersionId;
+  const connector = isLast ? '└──' : '├──';
+
   return (
     <div>
       <div
         onClick={() => onSelectVersion(node.version.id)}
-        className={`relative flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-all text-xs ${
+        className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg cursor-pointer transition-all text-xs ${
           isCurrent
             ? 'bg-[#eef1ff] text-[#1a1a2e] font-medium border-l-[3px] border-l-[#4f6ef7]'
             : 'text-[#6b7280] hover:bg-[#f3f4f6]'
         }`}
-        style={{ paddingLeft: 12 + depth * 16 }}
       >
-        {depth > 0 && (
-          <span className="text-[#d1d5db] select-none shrink-0">└</span>
-        )}
+        <span className="text-[#d1d5db] select-none shrink-0 font-mono text-[11px]">{prefix}{connector}</span>
         <span className="shrink-0 text-[#9ca3af] tabular-nums font-mono text-[10px]">v{node.version.label}</span>
         <span className="truncate">{node.version.operation}</span>
         {isCurrent && (
@@ -64,9 +62,20 @@ function TreeNodeItem({ node, currentVersionId, onSelectVersion, depth }: {
       </div>
       {node.children.length > 0 && (
         <div>
-          {node.children.map((child) => (
-            <TreeNodeItem key={child.version.id} node={child} currentVersionId={currentVersionId} onSelectVersion={onSelectVersion} depth={depth + 1} />
-          ))}
+          {node.children.map((child, i) => {
+            const last = i === node.children.length - 1;
+            const childPrefix = prefix + (isLast ? '  ' : '│ ');
+            return (
+              <TreeNodeItem
+                key={child.version.id}
+                node={child}
+                currentVersionId={currentVersionId}
+                onSelectVersion={onSelectVersion}
+                isLast={last}
+                prefix={childPrefix}
+              />
+            );
+          })}
         </div>
       )}
     </div>
@@ -117,14 +126,20 @@ export default function WorkflowTree({ versions, currentVersionId, onSelectVersi
                 <span className="ml-auto shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-[#4f6ef7] text-white font-medium">当前</span>
               )}
             </div>
-            {tree.map((node) => (
-              <div key={node.version.id} className="relative">
-                <div className="flex items-center justify-center text-[#d1d5db] py-0.5">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+            {tree.map((node, i) => {
+              const isLastBranch = i === tree.length - 1;
+              return (
+                <div key={node.version.id}>
+                  <TreeNodeItem
+                    node={node}
+                    currentVersionId={currentVersionId}
+                    onSelectVersion={onSelectVersion}
+                    isLast={isLastBranch}
+                    prefix=""
+                  />
                 </div>
-                <TreeNodeItem node={node} currentVersionId={currentVersionId} onSelectVersion={onSelectVersion} depth={0} />
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
