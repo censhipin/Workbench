@@ -104,14 +104,19 @@ export function useExecutionController(
     }));
     setExecutionSteps(waitingSteps);
 
-    // 检查是否有步骤
+    // 逐步执行动画：等待 → 执行中 → 完成，每步 150ms 快速但不突兀
     if (engineResult.steps.length > 0) {
-      // 立即标记所有步骤为已完成（不再人为延迟）
-      setExecutionSteps(engineResult.steps.map(s => ({
-        ...s,
-        status: 'completed' as StepStatus,
-        subItems: undefined,
-      })));
+      await new Promise(r => setTimeout(r, 50));
+      for (const finalStep of engineResult.steps) {
+        setExecutionSteps(prev => prev.map(s =>
+          s.id === finalStep.id ? { ...finalStep, status: 'executing' as StepStatus, subItems: undefined } : s
+        ));
+        await new Promise(r => setTimeout(r, 80));
+        setExecutionSteps(prev => prev.map(s =>
+          s.id === finalStep.id ? finalStep : s
+        ));
+        await new Promise(r => setTimeout(r, 70));
+      }
     }
 
     if (engineResult.success && engineResult.resultData) {
