@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ColumnDef, RowData, WorkbenchFile, PlanStep, HistoryItem, ResultSummary, AuditReport, FixResult, CellHighlight, EditMode, QuickAction, StepStatus, Version, DataTab } from '@/lib/types';
+import { ColumnDef, RowData, WorkbenchFile, PlanStep, HistoryItem, ResultSummary, AuditReport, FixResult, CellHighlight, EditMode, QuickAction, StepStatus, Version, DataTab, TaskSheetRef } from '@/lib/types';
 import type { ExecutionExplanation } from '@/lib/v3/explain';
 import { runQualityCheck, type InferenceResult } from '@/lib/quality';
 import { runAudit as auditEngine } from '@/lib/audit-engine';
@@ -55,7 +55,7 @@ export default function Home() {
   const [files, setFiles] = useState<WorkbenchFile[]>([]);
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
   const [activeSheet, setActiveSheet] = useState<string>('');
-  const [taskFileIds, setTaskFileIdsState] = useState<string[]>([]);
+  const [taskSheets, setTaskSheetsState] = useState<TaskSheetRef[]>([]);
   const [activeDataset, setActiveDataset] = useState<{ columns: ColumnDef[]; rows: RowData[] } | null>(null);
   const [promptText, setPromptText] = useState('');
   const [activeQuickAction, setActiveQuickAction] = useState<string | null>(null);
@@ -134,7 +134,7 @@ export default function Home() {
     handleConfirmAmbiguity, handleCancelAmbiguity, handleModifyPrompt,
   } = useExecutionController(
     onErrorCallback, onExplanationCallback, onVersionCreated, onHistoryAdded,
-    activeDataset, selectedFile, activeSheet, taskFileIds, files, promptText,
+    activeDataset, selectedFile, activeSheet, taskSheets, files, promptText,
     setApiKeyMode, setShowApiKeyDialog,
   );
 
@@ -174,7 +174,7 @@ export default function Home() {
     let cancelled = false;
     Promise.all([
       loadFiles().catch(() => [] as WorkbenchFile[]),
-      loadTaskFileIds().catch(() => [] as string[]),
+      loadTaskFileIds().catch(() => [] as TaskSheetRef[]),
       loadHistory().catch(() => [] as HistoryItem[]),
     ]).then(([savedFiles, savedIds, savedHistory]) => {
       if (cancelled) return;
@@ -182,8 +182,8 @@ export default function Home() {
       const hasSavedFiles = savedFiles.some(f => f && f.id);
       const allFiles = hasSavedFiles ? savedFiles.filter(f => f && f.id) : mockFiles;
       setFiles(allFiles);
-      const validTaskIds = hasSavedFiles ? savedIds.filter(id => allFiles.some(f => f.id === id)) : [];
-      setTaskFileIdsState(validTaskIds);
+      const validTaskIds = hasSavedFiles ? savedIds.filter(s => allFiles.some(f => f.id === s.fileId && f.sheets.some(sh => sh.name === s.sheetName))) : [];
+      setTaskSheetsState(validTaskIds);
       setHistoryItemsBulk(savedHistory.length > 0 ? savedHistory : (hasSavedFiles ? [] : mockHistory));
       if (!selectedFileId && allFiles.length > 0) {
         setSelectedFileId(allFiles[0].id);
@@ -233,7 +233,7 @@ export default function Home() {
 
   const handleRemoveFile = useCallback((id: string) => {
     setFiles(prev => prev.filter(f => f.id !== id));
-    setTaskFileIdsState(prev => prev.filter(x => x !== id));
+    setTaskSheetsState(prev => prev.filter(x => x.fileId !== id));
     if (selectedFileId === id) {
       const next = files.find(f => f.id !== id);
       setSelectedFileId(next?.id ?? null);
@@ -241,22 +241,24 @@ export default function Home() {
     }
   }, [selectedFileId, files, handleReset]);
 
-  const handleAddToTask = useCallback((id: string) => {
-    setTaskFileIdsState(prev => {
-      const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
+  const handleAddToTask = useCallback((fileId: string, sheetName: string) => {
+    const ref: TaskSheetRef = { fileId, sheetName };
+    setTaskSheetsState(prev => {
+      const exists = prev.some(t => t.fileId === fileId && t.sheetName === sheetName);
+      const next = exists ? prev.filter(t => t.fileId !== fileId || t.sheetName !== sheetName) : [...prev, ref];
       saveTaskFileIds(next).catch(() => {});
       return next;
     });
   }, []);
 
   const handleClearTaskFiles = useCallback(() => {
-    setTaskFileIdsState([]);
+    setTaskSheetsState([]);
     saveTaskFileIds([]).catch(() => {});
   }, []);
 
-  const handleRemoveTaskFile = useCallback((id: string) => {
-    setTaskFileIdsState(prev => {
-      const next = prev.filter(x => x !== id);
+  const handleRemoveTaskFile = useCallback((fileId: string, sheetName: string) => {
+    setTaskSheetsState(prev => {
+      const next = prev.filter(t => t.fileId !== fileId || t.sheetName !== sheetName);
       saveTaskFileIds(next).catch(() => {});
       return next;
     });
@@ -380,10 +382,10 @@ export default function Home() {
     ? `当前显示：v${currentVersion.label} ${currentVersion.operation} · ${displayRows.length}行×${displayColumns.length}列`
     : (selectedFile ? `原始数据 · ${displayRows.length}行×${displayColumns.length}列` : undefined);
 
-  const taskFileItems = taskFileIds.map(id => {
-    const f = files.find(x => x.id === id);
-    return f ? { id: f.id, name: f.name, icon: f.icon } : null;
-  }).filter(Boolean) as { id: string; name: string; icon: string }[];
+  const taskFileItems = taskSheets.map(ref => {
+    const f = files.find(x => x.id === ref.fileId);
+    return f ? { id: ref.fileId, name: f.name, icon: f.icon, sheet: ref.sheetName } : null;
+  }).filter(Boolean) as { id: string; name: string; icon: string; sheet: string }[];
 
   // ── 模拟数据（用于 Workbench 面板展示）─────────────────
   const qualityData = currentSheet ? {
@@ -422,7 +424,7 @@ export default function Home() {
           files={files}
           selectedFileId={selectedFileId}
           selectedSheet={activeSheet}
-          taskFileIds={taskFileIds}
+          taskSheets={taskSheets}
           onSelectFile={(id, sheet) => {
             setSelectedFileId(id);
             if (sheet) setActiveSheet(sheet);
@@ -431,7 +433,7 @@ export default function Home() {
           }}
           onAddFile={handleAddFile}
           onRemoveFile={handleRemoveFile}
-          onAddToTask={handleAddToTask}
+          onAddToTask={(fileId, sheetName) => handleAddToTask(fileId, sheetName)}
           versions={versions}
           currentVersionId={currentVersionId}
           onSelectVersion={wrappedHandleSelectVersion}

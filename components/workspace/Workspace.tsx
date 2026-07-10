@@ -1,24 +1,24 @@
 'use client';
 
 import { useState } from 'react';
-import { WorkbenchFile } from '@/lib/types';
+import { WorkbenchFile, TaskSheetRef } from '@/lib/types';
 
 interface WorkspaceProps {
   files: WorkbenchFile[];
   selectedFileId: string | null;
   selectedSheet?: string | null;
-  taskFileIds?: string[];
+  taskSheets?: TaskSheetRef[];
   onSelectFile: (id: string, sheet?: string) => void;
   onAddFile: () => void;
   onRemoveFile: (id: string) => void;
-  onAddToTask?: (id: string) => void;
+  onAddToTask: (fileId: string, sheetName: string) => void;
 }
 
 export default function Workspace({
   files,
   selectedFileId,
   selectedSheet,
-  taskFileIds = [],
+  taskSheets = [],
   onSelectFile,
   onAddFile,
   onRemoveFile,
@@ -26,6 +26,10 @@ export default function Workspace({
 }: WorkspaceProps) {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [expandedFileId, setExpandedFileId] = useState<string | null>(null);
+
+  function isSheetInTask(fileId: string, sheetName: string): boolean {
+    return taskSheets.some(t => t.fileId === fileId && t.sheetName === sheetName);
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -44,7 +48,6 @@ export default function Workspace({
           const isSelected = selectedFileId === file.id;
           const isExpanded = expandedFileId === file.id;
           const hasMultiSheets = file.sheets.length > 1;
-          const isInTask = taskFileIds.includes(file.id);
           return (
             <div key={file.id} className="space-y-1">
               <div
@@ -74,19 +77,6 @@ export default function Workspace({
                 </div>
 
                 <div className="flex items-center gap-1 shrink-0">
-                  {onAddToTask && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onAddToTask(file.id); }}
-                      className={'w-6 h-6 rounded-md flex items-center justify-center text-xs font-medium transition-all opacity-0 group-hover:opacity-100 ' + (isInTask ? 'bg-[#4f6ef7] text-white' : 'text-[#9ca3af] hover:text-[#4f6ef7] hover:bg-[#eef1ff]')}
-                      title={isInTask ? '移除任务文件' : '加入任务文件'}
-                    >
-                      {isInTask ? (
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
-                      ) : (
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-                      )}
-                    </button>
-                  )}
                   <button
                     onClick={(e) => { e.stopPropagation(); setDeleteConfirm(file.id); }}
                     className="w-6 h-6 rounded-md flex items-center justify-center text-[#d1d5db] hover:text-[#ef4444] hover:bg-[#fef2f2] opacity-0 group-hover:opacity-100 transition-all shrink-0"
@@ -99,21 +89,33 @@ export default function Workspace({
                 </div>
               </div>
 
-              {isExpanded && hasMultiSheets && (
+              {((!hasMultiSheets) || isExpanded) && (
                 <div className="pl-9 space-y-0.5">
                   {file.sheets.map((sheet) => {
                     const isSheetSelected = isSelected && selectedSheet === sheet.name;
+                    const inTask = isSheetInTask(file.id, sheet.name);
                     return (
                       <div
                         key={sheet.name}
                         onClick={() => onSelectFile(file.id, sheet.name)}
-                        className={'flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer transition-all text-xs ' + (isSheetSelected ? 'bg-[#eef1ff] text-[#4f6ef7] font-medium' : 'text-[#6b7280] hover:bg-[#f3f4f6]')}
+                        className={'flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer transition-all text-xs group ' + (isSheetSelected ? 'bg-[#eef1ff] text-[#4f6ef7] font-medium' : 'text-[#6b7280] hover:bg-[#f3f4f6]')}
                       >
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
                         </svg>
                         <span>{sheet.name}</span>
                         <span className="ml-auto text-[10px] text-[#9ca3af]">{sheet.rows.length}行</span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onAddToTask(file.id, sheet.name); }}
+                          className={'w-5 h-5 rounded flex items-center justify-center text-xs font-medium transition-all shrink-0 ' + (inTask ? 'bg-[#4f6ef7] text-white' : 'text-[#9ca3af] hover:text-[#4f6ef7] hover:bg-[#eef1ff] opacity-0 group-hover:opacity-100')}
+                          title={inTask ? '移除任务' : '加入任务'}
+                        >
+                          {inTask ? (
+                            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M20 6L9 17l-5-5" /></svg>
+                          ) : (
+                            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14" /></svg>
+                          )}
+                        </button>
                       </div>
                     );
                   })}

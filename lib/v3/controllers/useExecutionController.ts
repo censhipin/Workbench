@@ -2,7 +2,7 @@
 // useExecutionController — 执行控制器
 // ============================================================
 import { useState, useCallback } from 'react';
-import type { ColumnDef, RowData, WorkbenchFile, PlanStep, StepStatus, HistoryItem } from '@/lib/types';
+import type { ColumnDef, RowData, WorkbenchFile, PlanStep, StepStatus, HistoryItem, TaskSheetRef } from '@/lib/types';
 import type { ExecutionExplanation } from '@/lib/v3/explain';
 import { runExecutionEngine, type EngineRunResult } from '@/lib/execution-engine';
 import { parseIntentWithAI, parseAndResolve } from '@/lib/nlu';
@@ -31,7 +31,7 @@ export function useExecutionController(
   activeDataset: { columns: ColumnDef[]; rows: RowData[] } | null,
   selectedFile: WorkbenchFile | null,
   activeSheet: string,
-  taskFileIds: string[],
+  taskSheets: TaskSheetRef[],
   files: WorkbenchFile[],
   promptText: string,
   setApiKeyMode: (m: 'settings' | 'execute' | 'audit') => void,
@@ -52,7 +52,7 @@ export function useExecutionController(
     intent: any,
     mainFile: WorkbenchFile,
     sheetName: string,
-    taskFileIdsOverride?: string[],
+    taskSheetsOverride?: TaskSheetRef[],
   ) => {
     setIsRunning(true);
     setError(null);
@@ -72,19 +72,20 @@ export function useExecutionController(
       sheets: [{ name: sheetName, columns: snapColumns, rows: snapRows }],
     };
 
-    const selectedTaskFileIds = taskFileIdsOverride ?? taskFileIds;
+    const selectedTaskSheets = taskSheetsOverride ?? taskSheets;
     const taskFilesForExec: WorkbenchFile[] = [execFile];
-    if (selectedTaskFileIds.length > 0) {
-      for (const tid of selectedTaskFileIds) {
-        if (tid === mainFile.id) continue;
-        const tf = files.find(f => f.id === tid);
-        if (tf && tf.sheets[0]) {
+    if (selectedTaskSheets.length > 0) {
+      for (const ref of selectedTaskSheets) {
+        if (ref.fileId === mainFile.id) continue;
+        const tf = files.find(f => f.id === ref.fileId);
+        const sheet = tf?.sheets.find(s => s.name === ref.sheetName);
+        if (tf && sheet) {
           taskFilesForExec.push({
             ...tf,
             sheets: [{
-              name: tf.sheets[0].name,
-              columns: structuredClone(tf.sheets[0].columns),
-              rows: structuredClone(tf.sheets[0].rows),
+              name: ref.sheetName,
+              columns: structuredClone(sheet.columns),
+              rows: structuredClone(sheet.rows),
             }],
           });
         }
@@ -139,7 +140,7 @@ export function useExecutionController(
     }
 
     setIsRunning(false);
-  }, [promptText, activeDataset, taskFileIds, files, onError, onExplanation, onVersionCreated, onHistoryAdded]);
+  }, [promptText, activeDataset, taskSheets, files, onError, onExplanation, onVersionCreated, onHistoryAdded]);
 
   const handleSubmit = useCallback(async () => {
     if (!promptText.trim() || isRunning) return;
@@ -168,10 +169,10 @@ export function useExecutionController(
       const cols = dataset.columns;
       const fileNames = mainFile ? [mainFile.name] : [];
       const allFileNames = [...fileNames];
-      if (taskFileIds.length > 0) {
-        for (const tid of taskFileIds) {
-          if (tid === selectedFile?.id) continue;
-          const tf = files.find(f => f.id === tid);
+      if (taskSheets.length > 0) {
+        for (const ref of taskSheets) {
+          if (ref.fileId === selectedFile?.id) continue;
+          const tf = files.find(f => f.id === ref.fileId);
           if (tf && !allFileNames.includes(tf.name)) allFileNames.push(tf.name);
         }
       }
@@ -210,13 +211,13 @@ export function useExecutionController(
         return;
       }
 
-      await executeIntent(result.intent, mainFile!, activeSheet, taskFileIds);
+      await executeIntent(result.intent, mainFile!, activeSheet, taskSheets);
     } catch (err) {
       setError('处理出错: ' + (err instanceof Error ? err.message : String(err)));
     } finally {
       setIsRunning(false);
     }
-  }, [promptText, isRunning, selectedFile, activeDataset, taskFileIds, files, activeSheet, executeIntent, setApiKeyMode, setShowApiKeyDialog]);
+  }, [promptText, isRunning, selectedFile, activeDataset, taskSheets, files, activeSheet, executeIntent, setApiKeyMode, setShowApiKeyDialog]);
 
   const handleConfirmAmbiguity = useCallback((selections: any) => {
     if (!resolvedIntent) return;

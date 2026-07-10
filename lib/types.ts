@@ -77,6 +77,12 @@ export interface WorkbenchFile {
 
 export type EditMode = 'locked' | 'editing';
 
+/** 任务引用的 Sheet（文件 + 具体 Sheet 名） */
+export interface TaskSheetRef {
+  fileId: string;
+  sheetName: string;
+}
+
 export interface CellHighlight {
   rowIndex: number;
   colKey: string;

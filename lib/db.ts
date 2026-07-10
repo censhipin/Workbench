@@ -80,11 +80,13 @@ async function loadMeta(key: string): Promise<any | undefined> {
   });
 }
 
-export async function saveTaskFileIds(ids: string[]): Promise<void> {
+import type { TaskSheetRef } from './types';
+
+export async function saveTaskFileIds(ids: TaskSheetRef[]): Promise<void> {
   await saveMeta('taskFileIds', ids);
 }
 
-export async function loadTaskFileIds(): Promise<string[]> {
+export async function loadTaskFileIds(): Promise<TaskSheetRef[]> {
   return (await loadMeta('taskFileIds')) ?? [];
 }
 

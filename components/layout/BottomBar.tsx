@@ -18,7 +18,7 @@ interface BottomBarProps {
   canUndo: boolean;
   hasVersions: boolean;
   taskFileItems?: { id: string; name: string; icon: string; sheet?: string }[];
-  onRemoveTaskFile?: (id: string) => void;
+  onRemoveTaskFile?: (fileId: string, sheetName: string) => void;
   onClearTaskFiles?: () => void;
 }
 
@@ -62,7 +62,7 @@ export default function BottomBar({
               <span className="text-xs">{item.icon}</span>
               {item.sheet ? `${item.name}—${item.sheet}` : item.name}
               {onRemoveTaskFile && (
-                <button onClick={() => onRemoveTaskFile(item.id)} className="text-[#4f6ef7]/60 hover:text-[#4f6ef7]">
+                <button onClick={() => onRemoveTaskFile(item.id, item.sheet || '')} className="text-[#4f6ef7]/60 hover:text-[#4f6ef7]">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
                 </button>
               )}
