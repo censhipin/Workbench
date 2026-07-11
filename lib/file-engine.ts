@@ -165,3 +165,78 @@ export async function exportToExcel(
   a.click();
   URL.revokeObjectURL(url);
 }
+
+/** 导出为 CSV 并触发下载 */
+export function exportToCSV(
+  sheets: { name: string; columns: ColumnDef[]; rows: RowData[] }[],
+  fileName: string
+) {
+  const BOM = '﻿';
+  let csv = BOM;
+  for (const sheet of sheets) {
+    if (sheets.length > 1) csv += `# ${sheet.name}\n`;
+    csv += sheet.columns.map((c) => '"' + c.title.replace(/"/g, '""') + '"').join(',') + '\n';
+    for (const row of sheet.rows) {
+      csv += sheet.columns.map((c) => {
+        const v = row[c.key];
+        if (v === null || v === undefined) return '';
+        const s = String(v);
+        return '"' + s.replace(/"/g, '""') + '"';
+      }).join(',') + '\n';
+    }
+    csv += '\n';
+  }
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName.endsWith('.csv') ? fileName : `${fileName}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/** 导出为 JSON 并触发下载 */
+export function exportToJSON(
+  sheets: { name: string; columns: ColumnDef[]; rows: RowData[] }[],
+  fileName: string
+) {
+  var data: any;
+  if (sheets.length === 1) {
+    data = sheets[0].rows.map((row) => {
+      const obj: Record<string, string | number | null> = {};
+      sheets[0].columns.forEach((c) => { obj[c.title] = row[c.key] ?? null; });
+      return obj;
+    });
+  } else {
+    data = sheets.map((sheet) => ({
+      name: sheet.name,
+      data: sheet.rows.map((row) => {
+        const obj: Record<string, string | number | null> = {};
+        sheet.columns.forEach((c) => { obj[c.title] = row[c.key] ?? null; });
+        return obj;
+      }),
+    }));
+  }
+  const json = JSON.stringify(data, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName.endsWith('.json') ? fileName : `${fileName}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/** 按格式触发导出 */
+export type ExportFormat = 'xlsx' | 'csv' | 'json';
+
+export function exportData(
+  sheets: { name: string; columns: ColumnDef[]; rows: RowData[] }[],
+  fileName: string,
+  format: ExportFormat,
+  style?: TableStyle
+) {
+  if (format === 'xlsx') return exportToExcel(sheets, fileName, style);
+  if (format === 'csv') return exportToCSV(sheets, fileName);
+  return exportToJSON(sheets, fileName);
+}

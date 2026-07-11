@@ -3,7 +3,8 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { ColumnDef, RowData, ResultSummary } from '@/lib/types';
 import { TABLE_STYLES } from '@/lib/tableStyles';
-import type { TableStyle } from '@/lib/tableStyles';
+import { exportData } from '@/lib/file-engine';
+import type { ExportFormat } from '@/lib/file-engine';
 import DataTable from '@/components/common/DataTable';
 import EmptyState from '@/components/common/EmptyState';
 import Badge from '@/components/common/Badge';
@@ -15,7 +16,6 @@ interface ResultPreviewProps {
   showDiff: boolean;
   onToggleDiff: () => void;
   beforeData?: { columns: ColumnDef[]; rows: RowData[] } | null;
-  onExport?: (style?: TableStyle) => void;
   flexBasis?: string;
   resetKey?: string | number;
   error?: string | null;
@@ -24,22 +24,29 @@ interface ResultPreviewProps {
   onRowReorder?: (fromIndex: number, toIndex: number) => void;
   arrangeMode?: boolean;
   onToggleArrange?: () => void;
+  fileName?: string;
+  sheetName?: string;
+  operation?: string;
+  exportFileName?: string;
 }
 
-export default function ResultPreview({ columns, rows, summary, beforeData, onExport, flexBasis = '1', resetKey, error, isRunning, onColumnReorder: externalColReorder, onRowReorder, arrangeMode, onToggleArrange }: ResultPreviewProps) {
+export default function ResultPreview({ columns, rows, summary, beforeData, flexBasis = '1', resetKey, error, isRunning, onColumnReorder: externalColReorder, onRowReorder, arrangeMode, onToggleArrange, fileName, sheetName, operation, exportFileName }: ResultPreviewProps) {
   const hasResult = rows.length > 0;
   const [fullscreen, setFullscreen] = useState(false);
   const [localColumns, setLocalColumns] = useState<ColumnDef[] | null>(null);
   const [localRows, setLocalRows] = useState<RowData[] | null>(null);
   const [styleIndex, setStyleIndex] = useState(-1);
   const [styleOpen, setStyleOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const styleRef = useRef<HTMLDivElement>(null);
+  const exportRef = useRef<HTMLDivElement>(null);
   const displayColumns = localColumns || columns;
   const displayRows = localRows || rows;
 
   useEffect(function () {
     function onClick(e: MouseEvent) {
       if (styleRef.current && !styleRef.current.contains(e.target as Node)) setStyleOpen(false);
+      if (exportRef.current && !exportRef.current.contains(e.target as Node)) setExportOpen(false);
     }
     document.addEventListener('mousedown', onClick);
     return function () { document.removeEventListener('mousedown', onClick); };
@@ -60,6 +67,13 @@ export default function ResultPreview({ columns, rows, summary, beforeData, onEx
     setLocalRows(rs);
     if (onRowReorder) onRowReorder(fromIndex, toIndex);
   }, [localRows, rows, onRowReorder]);
+
+  const handleExportWithFormat = useCallback(function (format: ExportFormat) {
+    var baseName = (exportFileName || '导出数据').replace(/\.(xlsx|csv|json)$/, '');
+    var name = baseName + '.' + format;
+    var style = styleIndex >= 0 ? TABLE_STYLES[styleIndex] : undefined;
+    exportData([{ name: 'Sheet1', columns: displayColumns, rows: displayRows }], name, format, style);
+  }, [exportFileName, displayColumns, displayRows, styleIndex]);
 
   return (
     <>
@@ -112,7 +126,9 @@ export default function ResultPreview({ columns, rows, summary, beforeData, onEx
         <div className="fixed inset-0 z-50 bg-white flex flex-col">
           <div className="flex items-center justify-between px-6 py-3 border-b border-zinc-200 shrink-0">
             <div className="flex items-center gap-3">
-              <h2 className="text-base font-semibold text-zinc-800">数据查看器</h2>
+              <h2 className="text-base font-semibold text-zinc-800 truncate max-w-[500px]" title={(fileName ? fileName + ' — ' : '') + (operation || '数据查看')}>
+                {fileName}{sheetName ? ' / ' + sheetName : ''}{operation ? ' — ' + operation : ''}
+              </h2>
               <span className="text-xs text-zinc-400 bg-zinc-100 px-2 py-0.5 rounded">{rows.length} 行 x {columns.length} 列</span>
               {summary && (
                 <div className="flex items-center gap-1.5 ml-2">
@@ -170,10 +186,49 @@ export default function ResultPreview({ columns, rows, summary, beforeData, onEx
                   </div>
                 )}
               </div>
-              <button onClick={() => { if (onExport) onExport(styleIndex >= 0 ? TABLE_STYLES[styleIndex] : undefined); }} className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-md border border-zinc-200 text-zinc-600 hover:bg-zinc-50 transition-colors">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>
-                导出
-              </button>
+              <div className="relative" ref={exportRef}>
+                <button
+                  onClick={() => setExportOpen(!exportOpen)}
+                  className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-md border border-zinc-200 text-zinc-600 hover:bg-zinc-50 transition-colors"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>
+                  导出
+                </button>
+                {exportOpen && (
+                  <div className="absolute right-0 top-full mt-1 z-50 bg-white rounded-xl shadow-xl border border-zinc-200 py-1.5 w-56">
+                    <button
+                      onClick={() => { setExportOpen(false); handleExportWithFormat('xlsx'); }}
+                      className="w-full flex items-center gap-3 px-3 py-2 text-xs text-left hover:bg-zinc-50 transition-colors group"
+                    >
+                      <span className="text-lg shrink-0">📗</span>
+                      <div className="min-w-0">
+                        <div className="font-medium text-zinc-700">Excel (.xlsx) <span className="text-[10px] text-blue-500 font-normal">推荐</span></div>
+                        <div className="text-[10px] text-zinc-400">用于日常办公</div>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => { setExportOpen(false); handleExportWithFormat('csv'); }}
+                      className="w-full flex items-center gap-3 px-3 py-2 text-xs text-left hover:bg-zinc-50 transition-colors"
+                    >
+                      <span className="text-lg shrink-0">📄</span>
+                      <div className="min-w-0">
+                        <div className="font-medium text-zinc-700">CSV (.csv)</div>
+                        <div className="text-[10px] text-zinc-400">用于数据分析和系统导入</div>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => { setExportOpen(false); handleExportWithFormat('json'); }}
+                      className="w-full flex items-center gap-3 px-3 py-2 text-xs text-left hover:bg-zinc-50 transition-colors"
+                    >
+                      <span className="text-lg shrink-0">{}</span>
+                      <div className="min-w-0">
+                        <div className="font-medium text-zinc-700">JSON (.json)</div>
+                        <div className="text-[10px] text-zinc-400">用于开发和接口调用</div>
+                      </div>
+                    </button>
+                  </div>
+                )}
+              </div>
               <button onClick={() => setFullscreen(false)} className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-md border border-zinc-200 text-zinc-600 hover:bg-zinc-50 transition-colors">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
                 关闭

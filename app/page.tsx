@@ -13,7 +13,6 @@ import { onTraceUpdate, offTraceUpdate, type PipelineTrace } from '@/lib/pipelin
 import { useExecutionController } from '@/lib/v3/controllers/useExecutionController';
 import { useVersionController } from '@/lib/v3/controllers/useVersionController';
 import { useHistoryController } from '@/lib/v3/controllers/useHistoryController';
-import { useExportController } from '@/lib/v3/controllers/useExportController';
 import { useDialogController } from '@/lib/v3/controllers/useDialogController';
 
 // Layout
@@ -152,7 +151,6 @@ export default function Home() {
     const v = versions.find(x => x.id === id);
     if (v) setActiveDataset({ columns: v.columns, rows: v.rows });
   }, [handleSelectVersion, versions, setActiveDataset]);
-  const { handleExport } = useExportController();
 
   // ── 显示数据 ────────────────────────────────────────────
   const displayColumns = currentVersion ? currentVersion.columns : (activeDataset ? activeDataset.columns : []);
@@ -506,12 +504,15 @@ export default function Home() {
               showDiff={false}
               onToggleDiff={() => setActiveTab('compare')}
               beforeData={beforeDataRef}
-              onExport={(style?: any) => handleExport(displayColumns, displayRows, selectedFile, style)}
               resetKey={resultKey}
               error={error}
               isRunning={isRunning}
               arrangeMode={arrangeMode}
               onToggleArrange={() => setArrangeMode(prev => !prev)}
+              fileName={selectedFile?.name}
+              sheetName={activeSheet}
+              operation={currentVersion?.operation}
+              exportFileName={(selectedFile?.name?.replace(/\.(xlsx|csv)$/, '') || '导出数据') + (currentVersion ? '_' + currentVersion.operation : '')}
             />
           )}
 
