@@ -48,6 +48,7 @@ import DataAudit from '@/components/taskpanel/DataAudit';
 import EmptyState from '@/components/common/EmptyState';
 import DebugTraceModal from '@/components/debug/DebugTraceModal';
 import SettingsDialog from '@/components/common/SettingsDialog';
+import HelpDialog from '@/components/common/HelpDialog';
 
 export default function Home() {
   // ── 文件状态 ────────────────────────────────────────────
@@ -91,6 +92,7 @@ export default function Home() {
     debugMode, setDebugMode,
     dismissError,
   } = useDialogController();
+  const [showHelp, setShowHelp] = useState(false);
 
   // ── 版本管理 ────────────────────────────────────────────
   const {
@@ -417,6 +419,7 @@ export default function Home() {
         debugMode={debugMode}
         onToggleDebug={() => setDebugMode(prev => !prev)}
         onOpenSettings={() => { setApiKeyMode('settings'); setShowApiKeyDialog(true); }}
+        onOpenHelp={() => setShowHelp(true)}
       />
 
       {/* 主体区域 */}
@@ -697,6 +700,8 @@ export default function Home() {
       )}
 
       {/* API Key 配置弹窗 */}
+      {showHelp && <HelpDialog open={showHelp} onClose={() => setShowHelp(false)} />}
+
       {showApiKeyDialog && (
         <SettingsDialog
           mode={apiKeyMode}
