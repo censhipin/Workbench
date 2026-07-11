@@ -431,7 +431,7 @@ export default function Home() {
             setSelectedFileId(id);
             if (sheet) setActiveSheet(sheet);
             else { const f = files.find(x => x.id === id); if (f && !f.sheets.some(s => s.name === activeSheet)) setActiveSheet(f.sheets[0]?.name ?? ''); }
-            handleReset();
+            if (id !== selectedFileId) handleReset();
           }}
           onAddFile={handleAddFile}
           onRemoveFile={handleRemoveFile}
