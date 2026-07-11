@@ -57,6 +57,9 @@ export function useExecutionController(
     setIsRunning(true);
     setError(null);
 
+    // ── 让出主线程，让 React 渲染 loading 状态 ──
+    await new Promise(r => setTimeout(r, 50));
+
     const dataset = activeDataset;
     if (!dataset) {
       setError('没有可执行的数据');
@@ -219,7 +222,7 @@ export function useExecutionController(
     }
   }, [promptText, isRunning, selectedFile, activeDataset, taskSheets, files, activeSheet, executeIntent, setApiKeyMode, setShowApiKeyDialog]);
 
-  const handleConfirmAmbiguity = useCallback((selections: any) => {
+  const handleConfirmAmbiguity = useCallback(async (selections: any) => {
     if (!resolvedIntent) return;
     const mainFile = selectedFile;
     if (!mainFile || !activeDataset) return;
@@ -230,6 +233,8 @@ export function useExecutionController(
       }));
     }
 
+    // Let React render the loading state before the sync execution blocks
+    await new Promise(r => setTimeout(r, 50));
     executeIntent(resolvedIntent, mainFile, activeSheet, taskSheets);
     setAmbiguityReport(null);
     setPlanPreview(null);
