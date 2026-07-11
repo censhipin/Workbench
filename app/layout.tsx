@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "表格数据工作台",
+  title: "DataPilot",
   description: "用自然语言处理Excel表格数据",
 };
 
