@@ -48,6 +48,7 @@ ${colDescriptions}
 - update: 批量修改/填充列值（需 column + value + 可选 conditions）
 - formula: 新增计算列（需 targetColumn + sourceColumnHints + expressionType）
 - pipeline: 多个操作顺序执行（需 steps 数组，每步是一个 TaskPlan）
+- pivot: 透视表/交叉汇总（需 columnHints 行维度 + valueField 值列 + method 聚合方法，可选 groupByHints 列维度）
 - output: 所有动作都可以附加输出约束
 
 输出约束示例:
@@ -157,6 +158,19 @@ ${colDescriptions}
 # pipeline 多步操作
 操作1，再操作2 →
 {"action":"pipeline","steps":[{"action":"filter","conditions":[{"columnHint":"列A","operator":"=","value":"某值"}]},{"action":"sort","columnHint":"列B","direction":"desc"}]}
+
+# 透视表
+按业务员统计各状态的金额总和 →
+{"action":"pivot","columnHints":["业务员"],"valueField":"金额","method":"sum","groupByHints":["状态"]}
+
+按客户汇总销售额 →
+{"action":"pivot","columnHints":["客户"],"valueField":"销售额","method":"sum"}
+
+每个业务员的平均金额 →
+{"action":"pivot","columnHints":["业务员"],"valueField":"金额","method":"avg"}
+
+统计各部门各职级的人数 →
+{"action":"pivot","columnHints":["部门","职级"],"valueField":"姓名","method":"count"}
 
 	要求:
 6. 公式支持直接写完整表达式（如 "实发工资 = 基本工资 * 绩效 + 基本工资"），用 expression 字段传递，不要拆解为 pipeline 多步

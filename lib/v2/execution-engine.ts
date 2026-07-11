@@ -24,6 +24,7 @@ import { ProjectionExecutor } from './executors/ProjectionExecutor';
 import { UpdateExecutor } from './executors/UpdateExecutor';
 import { FormulaExecutor } from './executors/FormulaExecutor';
 import { PipelineExecutor } from './executors/PipelineExecutor';
+import { PivotExecutor } from './executors/PivotExecutor';
 import { validatePlan } from './plan-validator';
 import { createSnapshot, cloneResult } from './execution-snapshot';
 import type { DataProfile } from '../v3/profile/types';
@@ -44,6 +45,7 @@ registry.registerAll(
   new UpdateExecutor(),
   new FormulaExecutor(),
   new PipelineExecutor(),
+  new PivotExecutor(),
 );
 
 // 注册所有内置 Verifier

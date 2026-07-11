@@ -30,7 +30,7 @@ export interface AggregationHint {
 export type SortDirection = 'asc' | 'desc';
 
 /** 动作类型 */
-export type TaskPlanAction = 'sort' | 'filter' | 'aggregate' | 'delete' | 'dedup' | 'match' | 'merge' | 'clean' | 'select' | 'remove' | 'rename' | 'projection' | 'update' | 'formula' | 'pipeline' | 'unknown';
+export type TaskPlanAction = 'sort' | 'filter' | 'aggregate' | 'delete' | 'dedup' | 'match' | 'merge' | 'clean' | 'select' | 'remove' | 'rename' | 'projection' | 'update' | 'formula' | 'pipeline' | 'pivot' | 'unknown';
 
 /**
  * DeepSeek 输出的标准化 TaskPlan
@@ -77,6 +77,8 @@ export interface TaskPlan {
   renameColumns?: Record<string, string>;
   /** projection 操作的列排序 */
   reorderColumns?: string[];
+  /** pivot 操作的列维度（复用 groupByHints） */
+  valueField?: string;
   /** update/formula 操作的目标值 */
   value?: string | number;
   /** update 操作的值来源 */

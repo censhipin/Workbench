@@ -21,6 +21,7 @@ import {
   type ProjectionPlan,
   type UpdatePlan,
   type FormulaPlan,
+  type PivotPlan,
   type SortClause,
   SortOrder,
   AggMethod,
@@ -89,6 +90,8 @@ export function compile(taskPlan: TaskPlan, columns: ColumnDef[], rows?: RowData
       return compileFormula(taskPlan, ctx);
     case 'pipeline':
       return compilePipeline(taskPlan, ctx);
+    case 'pivot':
+      return compilePivot(taskPlan, ctx);
     case 'unknown':
       return { success: false, error: taskPlan.reason || 'AI 无法理解该指令' };
     default:
@@ -360,6 +363,29 @@ function compileProjection(plan: TaskPlan, ctx: ColumnContext): CompileResult {
   if (renameColumns && Object.keys(renameColumns).length) result.renameColumns = renameColumns;
   if (reorderColumns?.length) result.reorderColumns = reorderColumns;
 
+  return { success: true, plan: result };
+}
+
+function compilePivot(plan: TaskPlan, ctx: ColumnContext): CompileResult {
+  const rowFields: string[] = [];
+  const hints = plan.columnHints || (plan.columnHint ? [plan.columnHint] : []);
+  if (hints.length === 0) {
+    return { success: false, error: '透视表缺少行维度列' };
+  }
+  for (const h of hints) {
+    const k = resolveColumn(h, ctx);
+    if (!k) return { success: false, error: `找不到列: "${h}"` };
+    rowFields.push(k);
+  }
+
+  const valueField = plan.valueField ? resolveColumn(plan.valueField, ctx) : undefined;
+  if (!valueField) return { success: false, error: '透视表缺少值列' };
+  const method = mapAggMethodSimple(plan.method || 'sum') || AggMethod.SUM;
+
+  const colField = plan.groupByHints?.length ? resolveColumn(plan.groupByHints[0], ctx) : undefined;
+
+  const result: PivotPlan = { type: 'pivot', rowFields, valueField, aggMethod: method };
+  if (colField) result.colField = colField;
   return { success: true, plan: result };
 }
 

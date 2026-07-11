@@ -238,6 +238,27 @@ export interface PipelinePlan {
   output?: OutputSpec;
 }
 
+/**
+ * 透视表计划
+ *   rowFields: 行维度列（放到行上）
+ *   colField: 列维度（可选，每个唯一值变成一列）
+ *   valueField: 值列（聚合的数值）
+ *   aggMethod: 聚合方法
+ *
+ * 示例：行=业务员，列=状态，值=金额，方法=SUM
+ *   业务员 | 完成   | 失败   | 部分
+ *   张三   | 100000 | 20000  | 5000
+ *   李四   | 80000  | 15000  | 3000
+ */
+export interface PivotPlan {
+  type: 'pivot';
+  rowFields: string[];
+  colField?: string;
+  valueField: string;
+  aggMethod: AggMethod;
+  output?: OutputSpec;
+}
+
 /** 联合类型 */
 export type ExecutionPlan =
   | FilterPlan
@@ -250,4 +271,5 @@ export type ExecutionPlan =
   | ProjectionPlan
   | UpdatePlan
   | FormulaPlan
-  | PipelinePlan;
+  | PipelinePlan
+  | PivotPlan;

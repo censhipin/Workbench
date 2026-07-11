@@ -101,6 +101,8 @@ function validatePlanBase(plan: ExecutionPlan, columns: ColumnDef[]): PlanValida
       return validateUpdatePlan(plan, columns, issues);
     case 'formula':
       return validateFormulaPlan(plan, columns, issues);
+    case 'pivot':
+      break;
     case 'pipeline':
       return validatePipelinePlan(plan, columns, issues);
     default:

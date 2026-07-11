@@ -18,7 +18,8 @@ export function getSheets(fileId:string){const f=mockFiles.find((x)=>x.id===file
 export const quickActions:QuickAction[]=[
   {id:'sum',label:'求和',icon:'Σ',prompt:'统计销售总额'},{id:'sort',label:'排序',icon:'↕',prompt:'按销售额从高到低排序'},
   {id:'filter',label:'筛选',icon:'⊞',prompt:'筛选2024年1月份数据'},{id:'dedup',label:'去重',icon:'⊟',prompt:'删除重复手机号'},
-  {id:'match',label:'匹配合并',icon:'⇌',prompt:'按姓名匹配员工信息表和联系方式表'},{id:'clean',label:'数据清洗',icon:'✦',prompt:'清除空白行和异常数据'}
+  {id:'match',label:'匹配合并',icon:'⇌',prompt:'按姓名匹配员工信息表和联系方式表'},{id:'clean',label:'数据清洗',icon:'✦',prompt:'清除空白行和异常数据'},
+  {id:'pivot',label:'透视表',icon:'⊞',prompt:'按业务员统计各状态金额'}
 ];
 export const promptExamples=['统计2024年销售总额','删除重复手机号','按姓名匹配员工信息表和联系方式表','合并所有月份销售数据','筛选2024年1月份数据'];
 export const mockHistory: HistoryItem[] = [
