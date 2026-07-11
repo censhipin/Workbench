@@ -426,7 +426,7 @@ export default function Home() {
           files={files}
           selectedFileId={selectedFileId}
           selectedSheet={activeSheet}
-          taskFileIds={[]}
+          taskFileIds={taskSheets.map(t => t.fileId)}
           onSelectFile={(id, sheet) => {
             setSelectedFileId(id);
             if (sheet) setActiveSheet(sheet);
