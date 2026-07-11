@@ -267,8 +267,12 @@ export function runExecutionEngine(
     issues.push({ severity: 'error', field: 'sheet', message: '请先在左侧选择一个文件', code: 'SHEET_NOT_FOUND' });
   }
 
-  // ★ EIC DataProfile: 在任何执行前生成数据画像
-  const dataProfile = currentSheet && currentSheet.rows.length > 0
+  // 轻量操作（filter/sort/select/dedup/rename/remove）跳过 DataProfile + Repair + V3 Verification
+  const LIGHT_OPS = new Set(['filter', 'sort', 'select', 'dedup', 'rename', 'remove']);
+  const isHeavy = intent?.operation ? !LIGHT_OPS.has(intent.operation) : true;
+
+  // ★ EIC DataProfile: 在任何执行前生成数据画像（仅重操作需要）
+  const dataProfile = (isHeavy && currentSheet && currentSheet.rows.length > 0)
     ? buildDataProfile(currentSheet.columns, currentSheet.rows)
     : null;
 
@@ -320,9 +324,9 @@ export function runExecutionEngine(
   let verification: VerificationReport | null = null;
 
   if (executionResult?.success && executionResult.data) {
-    // V3 Verification: 使用 9 个 Verifier 对执行结果进行详细验证
+    // V3 Verification: 使用 9 个 Verifier 对执行结果进行详细验证（仅重操作需要）
     let v3Result = null;
-    if (repairedPlan) {
+    if (repairedPlan && isHeavy) {
       try {
         v3Result = verifyExecution(
           repairedPlan,

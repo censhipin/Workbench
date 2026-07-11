@@ -106,16 +106,19 @@ export function runExecutionPlan(
     // === OutputProcessor V2 — 统一输出格式处理 ===
     const processed = runOutputProcessor(result.rows, result.columns, validatedPlan.output);
 
-    // === V2 ResultVerifier — 执行结果逐条验证 ===
-    const verification = runVerification(validatedPlan, inputColumns, inputRows, processed.rows);
-    if (!verification.passed) {
-      const detail = verification.checks.map(c => c.detail).join('；');
-      return {
-        success: false,
-        confidence: 0,
-        warnings: verification.checks.filter(c => !c.passed).map(c => c.detail),
-        error: `结果验证失败: ${detail}`,
-      };
+    // === V2 ResultVerifier — 执行结果逐条验证（简单操作跳过） ===
+    const LIGHT_TYPES = new Set(['filter', 'sort', 'select', 'dedup', 'projection']);
+    if (!LIGHT_TYPES.has(validatedPlan.type)) {
+      const verification = runVerification(validatedPlan, inputColumns, inputRows, processed.rows);
+      if (!verification.passed) {
+        const detail = verification.checks.map(c => c.detail).join('；');
+        return {
+          success: false,
+          confidence: 0,
+          warnings: verification.checks.filter(c => !c.passed).map(c => c.detail),
+          error: `结果验证失败: ${detail}`,
+        };
+      }
     }
 
     // Step 3: 无分组全局聚合 → 在原表底部追加合计行

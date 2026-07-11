@@ -96,12 +96,13 @@ export function useExecutionController(
           continue;
         }
         const tf = files.find(f => f.id === ref.fileId);
-        const sheet = tf?.sheets.find(s => s.name === ref.sheetName);
+        const targetSheetName = ref.sheetName || (tf?.sheets[0]?.name ?? '');
+        const sheet = tf?.sheets.find(s => s.name === targetSheetName);
         if (tf && sheet) {
           taskFilesForExec.push({
             ...tf,
             sheets: [{
-              name: ref.sheetName,
+              name: targetSheetName,
               columns: structuredClone(sheet.columns),
               rows: structuredClone(sheet.rows),
             }],
@@ -111,6 +112,9 @@ export function useExecutionController(
     }
 
     const engineResult: EngineRunResult = runExecutionEngine(intent, execFile, sheetName, taskFilesForExec);
+
+    // ⚠️ 构建好数据后，让出主线程使 UI 能渲染更新（loading/执行步骤）
+    await new Promise(r => setTimeout(r, 20));
 
     const explanation = engineResult.explanation ?? null;
     setCurrentExplanation(explanation);

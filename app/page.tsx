@@ -138,19 +138,23 @@ export default function Home() {
   );
 
   // ── Workflow 版本选择/切换 ────────────────────────────
+  const [lastResultVersionId, setLastResultVersionId] = useState<string | null>(null);
+
   const handleSelectRawData = useCallback(() => {
+    setLastResultVersionId(currentVersionId);
     setCurrentVersionId(null);
     if (currentSheet) {
       setActiveDataset({ columns: currentSheet.columns, rows: currentSheet.rows });
     }
     setActiveTab('original');
-  }, [currentSheet, setCurrentVersionId, setActiveDataset, setActiveTab]);
+  }, [currentSheet, currentVersionId, setCurrentVersionId, setActiveDataset, setActiveTab]);
 
   const wrappedHandleSelectVersion = useCallback((id: string) => {
     handleSelectVersion(id);
     const v = versions.find(x => x.id === id);
     if (v) setActiveDataset({ columns: v.columns, rows: v.rows });
-  }, [handleSelectVersion, versions, setActiveDataset]);
+    setActiveTab('result');
+  }, [handleSelectVersion, versions, setActiveDataset, setActiveTab]);
 
   // ── 显示数据 ────────────────────────────────────────────
   const displayColumns = currentVersion ? currentVersion.columns : (activeDataset ? activeDataset.columns : []);
@@ -442,7 +446,16 @@ export default function Home() {
         {/* 中间预览区 */}
         <MainPanel
           activeTab={activeTab}
-          onTabChange={setActiveTab}
+          onTabChange={(tab) => {
+            setActiveTab(tab);
+            if (tab === 'original') {
+              handleSelectRawData();
+            } else if (tab === 'result' && lastResultVersionId) {
+              handleSelectVersion(lastResultVersionId);
+              const v = versions.find(x => x.id === lastResultVersionId);
+              if (v) setActiveDataset({ columns: v.columns, rows: v.rows });
+            }
+          }}
           hasResult={hasVersions}
           statusBar={statusBarText}
           bottomBar={

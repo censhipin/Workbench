@@ -53,6 +53,27 @@ export function fuzzyFind(value: string, candidates: string[], threshold = 0.85)
   return bestScore >= threshold ? bestMatch : null;
 }
 
+/** Pre-normalized fuzzy find — avoids re-normalizing candidates on every call */
+function fuzzyFindPreNormed(value: string, normedCandidates: { orig: string; norm: string }[], threshold = 0.85): string | null {
+  const nv = normalizeStr(value);
+  if (!nv) return null;
+  const exact = normedCandidates.find((x) => x.norm === nv);
+  if (exact) return exact.orig;
+  const MAX_FUZZY = 200;
+  const sampled = normedCandidates.length > MAX_FUZZY
+    ? normedCandidates.slice(0, MAX_FUZZY)
+    : normedCandidates;
+  let bestScore = 0;
+  let bestMatch: string | null = null;
+  for (const { orig, norm } of sampled) {
+    const dist = levenshteinDistance(nv, norm);
+    const maxLen = Math.max(nv.length, norm.length);
+    const sim = maxLen > 0 ? 1 - dist / maxLen : 1;
+    if (sim > bestScore) { bestScore = sim; bestMatch = orig; }
+  }
+  return bestScore >= threshold ? bestMatch : null;
+}
+
 /** Aggregation method Chinese label */
 export function aggMethodLabel(method: string): string {
   switch (method) {
@@ -332,7 +353,7 @@ function matchTwoMulti(
   return { columns, rows: mergedRows, matched, unmatched: main.rows.length - matched };
 }
 
-// ---- 涓よ〃鍖归厤锛堝唴閮ㄧ敤锛?----
+// ---- 两表匹配（内部用）----
 function matchTwo(
   main: { columns: ColumnDef[]; rows: RowData[] },
   lookup: { columns: ColumnDef[]; rows: RowData[] },
@@ -340,8 +361,8 @@ function matchTwo(
 ): {
   columns: ColumnDef[]; rows: RowData[]; matched: number; unmatched: number
 } {
-  // 鏋勫缓褰掍竴鍖栫储寮曪紙鍚屾椂淇濈暀鍘熷 key 鐢ㄤ簬妯＄硦鍥為€€锛?
- const normMap = new Map<string, RowData>();
+  // 构建归一化索引（同时保留原始 key 用于模糊回退）
+  const normMap = new Map<string, RowData>();
   const normKeys: string[] = [];
   for (const row of lookup.rows) {
     const raw = String(row[matchKey] ?? '').trim();
@@ -353,17 +374,22 @@ function matchTwo(
   const lkCols = lookup.columns.filter((c) => c.key !== matchKey);
   const columns: ColumnDef[] = [...main.columns, ...lkCols.map((c) => ({ ...c, key: '_lkp_' + c.key }))];
   let matched = 0;
+
+  // 预计算候选值归一化（一次计算，避免每行 map 循环重新 normalize）
   const fuzzyCandidates = [...new Set(lookup.rows.map((r) => String(r[matchKey] ?? "").trim()).filter(Boolean))];
+  const normedCandidates = fuzzyCandidates.map((c) => ({ orig: c, norm: normalizeStr(c) })).filter((x) => x.norm);
 
+  // 大数据集跳过模糊匹配（>2000 候选时成本太高）
+  const SKIP_FUZZY_THRESHOLD = 2000;
 
-  // 涓昏〃琛岋細绮剧‘鍖归厤 鈫?妯＄硦鍥為€€
+  // 主表行：精确匹配 → 模糊回退
   const mergedRows = main.rows.map((row) => {
     const raw = String(row[matchKey] ?? '').trim();
     const nk = normalizeStr(raw);
     let lkRow = nk ? normMap.get(nk) : undefined;
-    // 绮剧‘鏈懡涓?鈫?妯＄硦鏌ユ壘
-    if (!lkRow && nk) {
-      const fuzzyMatch = fuzzyFind(raw, fuzzyCandidates);
+    // 精确未命中 → 模糊查找（仅在数据集不太大时）
+    if (!lkRow && nk && normedCandidates.length <= SKIP_FUZZY_THRESHOLD) {
+      const fuzzyMatch = fuzzyFindPreNormed(raw, normedCandidates);
       if (fuzzyMatch) lkRow = normMap.get(normalizeStr(fuzzyMatch));
     }
     const newRow: RowData = { ...row };
@@ -388,7 +414,10 @@ export function matchMultiTables(
   for (let i = 1; i < tables.length; i++) {
     const lookup = tables[i];
     const commonKeys = findCommonKeys(main.columns, lookup.columns);
-    if (commonKeys.length === 0) continue;
+    if (commonKeys.length === 0) {
+      console.warn('[matchMultiTables] 未找到共同列:', { mainCols: main.columns.map(c => c.key + ':' + c.title), lookupCols: lookup.columns.map(c => c.key + ':' + c.title), lookupName: lookup.name });
+      continue;
+    }
     // 澶氬垪鍖归厤浼樺厛锛堝彇鍏ㄩ儴鍏卞悓鍒楋級锛屽惁鍒欏洖閫€鍗曞垪
     const r = commonKeys.length > 1
       ? matchTwoMulti(main, lookup, commonKeys)

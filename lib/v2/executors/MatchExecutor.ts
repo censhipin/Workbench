@@ -49,7 +49,8 @@ export class MatchExecutor implements OperationExecutor {
           unmatchedCount: Math.max(0, totalRows - matched),
         },
       };
-    } catch {
+    } catch (err) {
+      console.error('[MatchExecutor] 匹配失败:', err);
       // 任何匹配异常 → 降级为保留左表
       return {
         result: { columns: ctx.mainSheet.columns, rows: [...ctx.mainSheet.rows] },
