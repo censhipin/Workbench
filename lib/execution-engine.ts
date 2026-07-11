@@ -302,7 +302,7 @@ export function runExecutionEngine(
 
   if (validation.valid && intent && repairedPlan && currentSheet) {
     const taskSheets = taskFiles
-      .filter((f) => f.sheets[0])
+      .filter((f) => f.sheets[0] && f.id !== mainFile?.id)
       .map((f) => ({ columns: f.sheets[0].columns, rows: f.sheets[0].rows, name: f.name }));
     const rowsBefore = currentSheet.rows.length ?? 0;
 
