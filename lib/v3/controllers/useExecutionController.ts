@@ -79,7 +79,22 @@ export function useExecutionController(
     const taskFilesForExec: WorkbenchFile[] = [execFile];
     if (selectedTaskSheets.length > 0) {
       for (const ref of selectedTaskSheets) {
-        if (ref.fileId === mainFile.id) continue;
+        // Same file, different sheet: get the sheet from mainFile
+        if (ref.fileId === mainFile.id) {
+          const sheet = mainFile.sheets.find(s => s.name === ref.sheetName);
+          if (sheet && ref.sheetName !== sheetName) {
+            taskFilesForExec.push({
+              ...mainFile,
+              id: mainFile.id + '__' + ref.sheetName,
+              sheets: [{
+                name: ref.sheetName,
+                columns: structuredClone(sheet.columns),
+                rows: structuredClone(sheet.rows),
+              }],
+            });
+          }
+          continue;
+        }
         const tf = files.find(f => f.id === ref.fileId);
         const sheet = tf?.sheets.find(s => s.name === ref.sheetName);
         if (tf && sheet) {
