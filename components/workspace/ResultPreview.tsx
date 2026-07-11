@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { ColumnDef, RowData, ResultSummary } from '@/lib/types';
 import { TABLE_STYLES } from '@/lib/tableStyles';
+import type { TableStyle } from '@/lib/tableStyles';
 import DataTable from '@/components/common/DataTable';
 import EmptyState from '@/components/common/EmptyState';
 import Badge from '@/components/common/Badge';
@@ -14,7 +15,7 @@ interface ResultPreviewProps {
   showDiff: boolean;
   onToggleDiff: () => void;
   beforeData?: { columns: ColumnDef[]; rows: RowData[] } | null;
-  onExport?: () => void;
+  onExport?: (style?: TableStyle) => void;
   flexBasis?: string;
   resetKey?: string | number;
   error?: string | null;
@@ -169,7 +170,7 @@ export default function ResultPreview({ columns, rows, summary, beforeData, onEx
                   </div>
                 )}
               </div>
-              <button onClick={onExport} className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-md border border-zinc-200 text-zinc-600 hover:bg-zinc-50 transition-colors">
+              <button onClick={() => { if (onExport) onExport(styleIndex >= 0 ? TABLE_STYLES[styleIndex] : undefined); }} className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-md border border-zinc-200 text-zinc-600 hover:bg-zinc-50 transition-colors">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>
                 导出
               </button>

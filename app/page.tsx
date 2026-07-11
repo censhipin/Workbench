@@ -506,7 +506,7 @@ export default function Home() {
               showDiff={false}
               onToggleDiff={() => setActiveTab('compare')}
               beforeData={beforeDataRef}
-              onExport={() => handleExport(displayColumns, displayRows, selectedFile)}
+              onExport={(style?: any) => handleExport(displayColumns, displayRows, selectedFile, style)}
               resetKey={resultKey}
               error={error}
               isRunning={isRunning}

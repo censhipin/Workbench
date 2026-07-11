@@ -1,9 +1,9 @@
 // ============================================================
 // 文件解析引擎 — Excel/CSV 解析与导出
-// 依赖: npm install xlsx
 // ============================================================
 
 import { ColumnDef, RowData, SheetInfo, WorkbenchFile } from './types';
+import type { TableStyle } from './tableStyles';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let _XLSX: any = null;
@@ -96,17 +96,67 @@ export async function parseFile(file: File): Promise<WorkbenchFile> {
 /** 导出为 Excel 并触发下载 */
 export async function exportToExcel(
   sheets: { name: string; columns: ColumnDef[]; rows: RowData[] }[],
-  fileName: string
+  fileName: string,
+  style?: TableStyle
 ) {
-  const XLSX = await getXLSX();
-  const wb = XLSX.utils.book_new();
+  const ExcelJS = await import('exceljs');
+  const wb = new ExcelJS.Workbook();
+
   for (const sheet of sheets) {
-    const headerRow = sheet.columns.map((c) => c.title);
-    const dataRows = sheet.rows.map((row) => sheet.columns.map((c) => row[c.key] ?? ''));
-    const ws = XLSX.utils.aoa_to_sheet([headerRow, ...dataRows]);
-    XLSX.utils.book_append_sheet(wb, ws, sheet.name || 'Sheet1');
+    const ws = wb.addWorksheet(sheet.name || 'Sheet1');
+
+    // Write header row
+    const headerRow = ws.addRow(sheet.columns.map((c) => c.title));
+
+    // Write data rows
+    sheet.rows.forEach((row) => {
+      ws.addRow(sheet.columns.map((c) => row[c.key] ?? ''));
+    });
+
+    // Auto column widths
+    sheet.columns.forEach((c, ci) => {
+      const maxLen = Math.max(
+        c.title.length,
+        ...sheet.rows.map((r) => String(r[c.key] ?? '').length)
+      );
+      ws.getColumn(ci + 1).width = Math.min(Math.max(maxLen + 3, 10), 60);
+    });
+
+    if (style) {
+      // ── Header style ──
+      headerRow.eachCell((cell) => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: style!.headerBg.replace('#', '') } };
+        cell.font = { bold: true, color: { argb: style!.headerColor.replace('#', '') }, size: 11, name: 'Microsoft YaHei' };
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        cell.border = {
+          top: { style: 'thin', color: { argb: style!.borderColor.replace('#', '') } },
+          bottom: { style: 'thin', color: { argb: style!.borderColor.replace('#', '') } },
+          left: { style: 'thin', color: { argb: style!.borderColor.replace('#', '') } },
+          right: { style: 'thin', color: { argb: style!.borderColor.replace('#', '') } },
+        };
+      });
+      headerRow.height = 24;
+
+      // ── Data rows style (alternating) ──
+      sheet.rows.forEach((_row, i) => {
+        const excelRow = ws.getRow(i + 2);
+        const bg = i % 2 === 0 ? style!.rowEvenBg : style!.rowOddBg;
+        excelRow.eachCell((cell) => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg.replace('#', '') } };
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          cell.border = {
+            top: { style: 'thin', color: { argb: style!.borderColor.replace('#', '') } },
+            bottom: { style: 'thin', color: { argb: style!.borderColor.replace('#', '') } },
+            left: { style: 'thin', color: { argb: style!.borderColor.replace('#', '') } },
+            right: { style: 'thin', color: { argb: style!.borderColor.replace('#', '') } },
+          };
+        });
+        excelRow.height = 22;
+      });
+    }
   }
-  const buffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+
+  const buffer = await wb.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
