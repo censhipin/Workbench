@@ -230,10 +230,10 @@ export function useExecutionController(
       }));
     }
 
-    executeIntent(resolvedIntent, mainFile, activeSheet);
+    executeIntent(resolvedIntent, mainFile, activeSheet, taskSheets);
     setAmbiguityReport(null);
     setPlanPreview(null);
-  }, [resolvedIntent, selectedFile, activeDataset, activeSheet, executeIntent]);
+  }, [resolvedIntent, selectedFile, activeDataset, activeSheet, taskSheets, executeIntent]);
 
   const handleCancelAmbiguity = useCallback(() => {
     setAmbiguityReport(null);

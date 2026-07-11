@@ -37,9 +37,14 @@ export function fuzzyFind(value: string, candidates: string[], threshold = 0.85)
   const normed = candidates.map((c) => ({ orig: c, norm: normalizeStr(c) })).filter((x) => x.norm);
   const exact = normed.find((x) => x.norm === nv);
   if (exact) return exact.orig;
+  // Limit fuzzy candidates to prevent UI freeze on large datasets
+  const MAX_FUZZY = 200;
+  const sampled = normed.length > MAX_FUZZY
+    ? normed.slice(0, MAX_FUZZY)
+    : normed;
   let bestScore = 0;
   let bestMatch: string | null = null;
-  for (const { orig, norm } of normed) {
+  for (const { orig, norm } of sampled) {
     const dist = levenshteinDistance(nv, norm);
     const maxLen = Math.max(nv.length, norm.length);
     const sim = maxLen > 0 ? 1 - dist / maxLen : 1;
