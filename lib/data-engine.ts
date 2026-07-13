@@ -440,11 +440,22 @@ export function mergeTables(
   tables: { columns: ColumnDef[]; rows: RowData[] }[]
 ): { columns: ColumnDef[]; rows: RowData[]; summary: ResultSummary } {
   if (tables.length === 0) return { columns: [], rows: [], summary: { totalRecords: 0 } };
-  const colMap = new Map<string, ColumnDef>();
-  for (const t of tables) for (const c of t.columns) if (!colMap.has(c.key)) colMap.set(c.key, c);
-  const columns = Array.from(colMap.values());
+  // 收集所有表的列（每个表的列各自独立保留，不按 key 去重）
+  const columns: ColumnDef[] = [];
+  const tableCols = tables.map(t => t.columns);
+  for (const cols of tableCols) for (const c of cols) columns.push(c);
+  // 按行号横向拼接，短表行补 null
+  const maxLen = Math.max(...tables.map(t => t.rows.length));
   const rows: RowData[] = [];
-  for (const t of tables) for (const row of t.rows) { const nr: RowData = {}; for (const c of columns) nr[c.key] = row[c.key] ?? null; rows.push(nr); }
+  for (let i = 0; i < maxLen; i++) {
+    const nr: RowData = {};
+    for (let ti = 0; ti < tables.length; ti++) {
+      for (const c of tableCols[ti]) {
+        nr[c.key] = tables[ti].rows[i]?.[c.key] ?? null;
+      }
+    }
+    rows.push(nr);
+  }
   return { columns, rows, summary: { totalRecords: rows.length } };
 }
 

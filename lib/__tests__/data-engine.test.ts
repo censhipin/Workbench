@@ -217,32 +217,41 @@ describe('matchMultiTables', () => {
 // mergeTables
 // ============================================================
 describe('mergeTables', () => {
-  it('纵向拼接两张表', () => {
+  it('横向按行号拼接两张表（不同列名）', () => {
     const table1 = {
-      columns: [col('name'), col('age')],
-      rows: [{ name: '张三', age: 25 }],
+      columns: [col('姓名'), col('年龄'), col('学校')],
+      rows: [
+        { 姓名: '张三', 年龄: 25, 学校: '清华' },
+        { 姓名: '李四', 年龄: 22, 学校: '北大' },
+      ],
     };
     const table2 = {
-      columns: [col('name'), col('age')],
-      rows: [{ name: '李四', age: 30 }],
+      columns: [col('马路名'), col('城市'), col('型号')],
+      rows: [
+        { 马路名: '长安街', 城市: '北京', 型号: '柏油' },
+        { 马路名: '南京路', 城市: '上海', 型号: '水泥' },
+      ],
     };
     const result = mergeTables([table1, table2]);
     expect(result.rows.length).toBe(2);
-    expect(result.summary.totalRecords).toBe(2);
+    expect(result.rows[0]).toEqual({ 姓名: '张三', 年龄: 25, 学校: '清华', 马路名: '长安街', 城市: '北京', 型号: '柏油' });
+    expect(result.rows[1]).toEqual({ 姓名: '李四', 年龄: 22, 学校: '北大', 马路名: '南京路', 城市: '上海', 型号: '水泥' });
   });
 
-  it('额外列用 null 补齐', () => {
+  it('短表末尾行补 null', () => {
     const table1 = {
-      columns: [col('name')],
-      rows: [{ name: '张三' }],
+      columns: [col('姓名')],
+      rows: [{ 姓名: '张三' }, { 姓名: '李四' }, { 姓名: '王五' }],
     };
     const table2 = {
-      columns: [col('name'), col('age')],
-      rows: [{ name: '李四', age: 30 }],
+      columns: [col('年龄')],
+      rows: [{ 年龄: 25 }, { 年龄: 22 }],
     };
     const result = mergeTables([table1, table2]);
-    expect(result.rows[0].name).toBe('张三');
-    expect(result.rows[0].age).toBeNull();
+    expect(result.rows.length).toBe(3);
+    expect(result.rows[0]).toEqual({ 姓名: '张三', 年龄: 25 });
+    expect(result.rows[1]).toEqual({ 姓名: '李四', 年龄: 22 });
+    expect(result.rows[2]).toEqual({ 姓名: '王五', 年龄: null });
   });
 });
 
