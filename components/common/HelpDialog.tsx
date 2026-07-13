@@ -251,7 +251,7 @@ export default function HelpDialog({ open, onClose }: HelpDialogProps) {
         <div className="px-6 py-3.5 border-t border-zinc-100 bg-zinc-50/50 flex items-center justify-between">
           <div className="flex items-center gap-2 text-[11px] text-zinc-400">
             <span className="font-medium text-zinc-500">DataPilot</span>
-            <span>v1.0</span>
+            <span>v0.3.0</span>
             <span className="w-1 h-1 rounded-full bg-zinc-300" />
             <span>基于 DeepSeek AI · Next.js</span>
           </div>

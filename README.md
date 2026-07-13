@@ -143,7 +143,7 @@
 
 ### 桌面版安装
 
-1. 下载 `Table Data Workbench Setup 0.1.0.exe`
+1. 下载 `DataPilot Setup 0.3.0.exe`
 2. 双击安装，选择安装目录
 3. 安装完成后桌面出现快捷方式，双击启动
 
@@ -167,7 +167,7 @@ npm run dev:electron
 npm run package
 ```
 
-产物：`release/Table Data Workbench Setup 0.1.0.exe`
+产物：`release/DataPilot Setup 0.3.0.exe`
 
 ---
 
@@ -297,4 +297,4 @@ npm test
 npm run package
 ```
 
-*版本 0.1.0 · 2026-07-14*
+*版本 0.3.0 · 2026-07-14*
