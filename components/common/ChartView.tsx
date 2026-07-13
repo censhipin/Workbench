@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { ColumnDef, RowData } from '@/lib/types';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LabelList,
   LineChart, Line, AreaChart, Area,
   PieChart, Pie, Cell,
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
@@ -19,9 +19,11 @@ type ExportFormat = 'html' | 'png' | 'svg' | 'pdf';
 interface ChartViewProps {
   columns: ColumnDef[];
   rows: RowData[];
+  operation?: string;
 }
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
+const CHART_LABELS: Record<ChartType, string> = { bar: '柱状图', line: '折线图', area: '面积图', pie: '饼图', radar: '雷达图', scatter: '散点图' };
 
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
@@ -44,7 +46,7 @@ function fmt(n: number): string {
   return Number(n).toFixed(2);
 }
 
-export default function ChartView({ columns, rows }: ChartViewProps) {
+export default function ChartView({ columns, rows, operation }: ChartViewProps) {
   const chartRef = useRef<HTMLDivElement>(null);
   const [chartType, setChartType] = useState<ChartType>('bar');
   const [topN, setTopN] = useState(20);
@@ -122,10 +124,11 @@ export default function ChartView({ columns, rows }: ChartViewProps) {
     }).map(r => ({ [validX]: r[validX], [validY]: Number(r[validY]) || 0 }));
   }, [displayData, validX, validY, chartType]);
 
-  const chartTitle = `${chartTypeOptions.find(t => t.key === chartType)?.label || chartType} — ${validX} × ${validY}`;
+  const chartTitle = `${CHART_LABELS[chartType]} — ${validX} × ${validY}`;
+  const yTitle = numericCols.find(c => c.key === validY)?.title || validY;
 
   // ── 生成 HTML ──
-  const buildHtml = useCallback(() => {
+  const buildHtml = useCallback((withValues: boolean) => {
     const dataJson = JSON.stringify(displayData);
     const rdJson = JSON.stringify(radarData);
     const isPie = chartType === 'pie';
@@ -138,15 +141,17 @@ export default function ChartView({ columns, rows }: ChartViewProps) {
     if (isPie) {
       chartJsx = `React.createElement(ResponsiveContainer,{width:'100%',height:'100%'},
   React.createElement(PieChart,{},
-    React.createElement(Pie,{data,dataKey:'${validY}',nameKey:'${validX}',cx:'50%',cy:'50%',outerRadius:'70%',label:e=>e.name},
+    React.createElement(Pie,{data,dataKey:'${validY}',nameKey:'${validX}',cx:'50%',cy:'50%',outerRadius:'70%',label:e=>e.name+':'+Number(e.value??0).toFixed(2)},
       data.map((_,i)=>React.createElement(Cell,{key:i,fill:['#6366f1','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#06b6d4','#84cc16'][i%8]})),
     ),
     React.createElement(Tooltip,{formatter:v=>Number(v??0).toFixed(2)}),
     React.createElement(Legend,null),
   )
 )`;
-    } else if (isRadar) {
-      chartJsx = `React.createElement(ResponsiveContainer,{width:'100%',height:'100%'},
+    } else {
+      const labelEl = withValues ? ',React.createElement(LabelList,{dataKey:"' + validY + '",position:"top",fontSize:10,fill:"#52525b",formatter:v=>Number(v??0).toFixed(2)})' : '';
+      if (isRadar) {
+        chartJsx = `React.createElement(ResponsiveContainer,{width:'100%',height:'100%'},
   React.createElement(RadarChart,{data:rd,margin:{top:8,right:16,bottom:8,left:16}},
     React.createElement(PolarGrid,{stroke:'#e4e4e7'}),
     React.createElement(PolarAngleAxis,{dataKey:'${validX}',tick:{fontSize:10,fill:'#71717a'}}),
@@ -155,8 +160,8 @@ export default function ChartView({ columns, rows }: ChartViewProps) {
     React.createElement(Tooltip,{formatter:v=>Number(v??0).toFixed(2)}),
   )
 )`;
-    } else if (isScatter) {
-      chartJsx = `React.createElement(ResponsiveContainer,{width:'100%',height:'100%'},
+      } else if (isScatter) {
+        chartJsx = `React.createElement(ResponsiveContainer,{width:'100%',height:'100%'},
   React.createElement(ScatterChart,{margin:{top:8,right:16,bottom:8,left:0}},
     React.createElement(CartesianGrid,{strokeDasharray:'3 3',stroke:'#f0f0f0'}),
     React.createElement(XAxis,{dataKey:'${validScatterX}',tick:{fontSize:11,fill:'#a1a1aa'}}),
@@ -165,20 +170,20 @@ export default function ChartView({ columns, rows }: ChartViewProps) {
     React.createElement(Tooltip,{formatter:v=>Number(v??0).toFixed(2)}),
   )
 )`;
-    } else if (isLine) {
-      chartJsx = `React.createElement(ResponsiveContainer,{width:'100%',height:'100%'},
-  React.createElement(LineChart,{data,margin:{top:8,right:16,bottom:8,left:0}},
+      } else if (isLine) {
+        chartJsx = `React.createElement(ResponsiveContainer,{width:'100%',height:'100%'},
+  React.createElement(LineChart,{data,margin:{top:16,right:16,bottom:8,left:0}},
     React.createElement(CartesianGrid,{strokeDasharray:'3 3',stroke:'#f0f0f0'}),
     React.createElement(XAxis,{dataKey:'${validX}',tick:{fontSize:11,fill:'#a1a1aa'}}),
     React.createElement(YAxis,{tick:{fontSize:11,fill:'#a1a1aa'}}),
-    React.createElement(Line,{type:'monotone',dataKey:'${validY}',stroke:'#6366f1',strokeWidth:2.5,dot:{r:3}}),
+    React.createElement(Line,{type:'monotone',dataKey:'${validY}',stroke:'#6366f1',strokeWidth:2.5,dot:{r:3}}${labelEl}),
     React.createElement(Tooltip,{formatter:v=>Number(v??0).toFixed(2)}),
     React.createElement(Legend,null),
   )
 )`;
-    } else if (isArea) {
-      chartJsx = `React.createElement(ResponsiveContainer,{width:'100%',height:'100%'},
-  React.createElement(AreaChart,{data,margin:{top:8,right:16,bottom:8,left:0}},
+      } else if (isArea) {
+        chartJsx = `React.createElement(ResponsiveContainer,{width:'100%',height:'100%'},
+  React.createElement(AreaChart,{data,margin:{top:16,right:16,bottom:8,left:0}},
     React.createElement(CartesianGrid,{strokeDasharray:'3 3',stroke:'#f0f0f0'}),
     React.createElement(XAxis,{dataKey:'${validX}',tick:{fontSize:11,fill:'#a1a1aa'}}),
     React.createElement(YAxis,{tick:{fontSize:11,fill:'#a1a1aa'}}),
@@ -186,25 +191,25 @@ export default function ChartView({ columns, rows }: ChartViewProps) {
     React.createElement(Tooltip,{formatter:v=>Number(v??0).toFixed(2)}),
   )
 )`;
-    } else {
-      chartJsx = `React.createElement(ResponsiveContainer,{width:'100%',height:'100%'},
-  React.createElement(BarChart,{data,margin:{top:8,right:16,bottom:8,left:0}},
+      } else {
+        chartJsx = `React.createElement(ResponsiveContainer,{width:'100%',height:'100%'},
+  React.createElement(BarChart,{data,margin:{top:16,right:16,bottom:8,left:0}},
     React.createElement(CartesianGrid,{strokeDasharray:'3 3',stroke:'#f0f0f0'}),
     React.createElement(XAxis,{dataKey:'${validX}',tick:{fontSize:11,fill:'#a1a1aa'}}),
     React.createElement(YAxis,{tick:{fontSize:11,fill:'#a1a1aa'}}),
-    React.createElement(Bar,{dataKey:'${validY}',fill:'#6366f1',radius:[6,6,0,0]}),
+    React.createElement(Bar,{dataKey:'${validY}',fill:'#6366f1',radius:[4,4,0,0]}${labelEl}),
     React.createElement(Tooltip,{formatter:v=>Number(v??0).toFixed(2)}),
-    React.createElement(Legend,null),
   )
 )`;
+      }
     }
 
-    const rechartsImports = isPie ? 'PieChart,Pie,Cell,Tooltip,Legend,ResponsiveContainer'
+    const comps = isPie ? 'PieChart,Pie,Cell,Tooltip,Legend,ResponsiveContainer'
       : isRadar ? 'RadarChart,Radar,PolarGrid,PolarAngleAxis,PolarRadiusAxis,Tooltip,ResponsiveContainer'
       : isScatter ? 'ScatterChart,Scatter,XAxis,YAxis,CartesianGrid,Tooltip,ResponsiveContainer'
-      : isLine ? 'LineChart,Line,XAxis,YAxis,CartesianGrid,Tooltip,Legend,ResponsiveContainer'
+      : isLine ? 'LineChart,Line,XAxis,YAxis,CartesianGrid,Tooltip,Legend,ResponsiveContainer,LabelList'
       : isArea ? 'AreaChart,Area,XAxis,YAxis,CartesianGrid,Tooltip,ResponsiveContainer'
-      : 'BarChart,Bar,XAxis,YAxis,CartesianGrid,Tooltip,Legend,ResponsiveContainer';
+      : 'BarChart,Bar,XAxis,YAxis,CartesianGrid,Tooltip,ResponsiveContainer,LabelList';
 
     return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -225,7 +230,7 @@ h2{font-size:15px;font-weight:600;color:#18181b;margin-bottom:16px;padding-botto
 </head><body>
 <div class="card"><h2>${chartTitle}</h2><div class="chart-wrap" id="chart-container"></div><div class="tip">💡 鼠标悬浮查看数据 · 完全交互</div></div>
 <script type="text/babel">
-const{${rechartsImports}}=Recharts;
+const{${comps}}=Recharts;
 const data=${dataJson};
 const rd=${rdJson};
 function App(){return ${chartJsx}}
@@ -240,7 +245,7 @@ root.render(React.createElement(App));
     setExportLoading(format);
 
     if (format === 'html') {
-      const html = buildHtml();
+      const html = buildHtml(true);
       const blob = new Blob([html], { type: 'text/html' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -252,7 +257,6 @@ root.render(React.createElement(App));
       return;
     }
 
-    // 等待一帧让渲染完成
     await new Promise(r => setTimeout(r, 100));
     const el = chartRef.current?.querySelector('.recharts-wrapper') as HTMLElement;
     if (!el) { setExportLoading(null); return; }
@@ -260,39 +264,78 @@ root.render(React.createElement(App));
     try {
       if (format === 'png') {
         const dataUrl = await toPng(el, { backgroundColor: '#ffffff', pixelRatio: 2, quality: 1 });
-        const a = document.createElement('a');
-        a.href = dataUrl;
-        a.download = `${chartTitle.replace(/[\s\/\\]/g, '_')}.png`;
-        a.click();
+        const a = document.createElement('a'); a.href = dataUrl;
+        a.download = `${chartTitle.replace(/[\s\/\\]/g, '_')}.png`; a.click();
       } else if (format === 'svg') {
         const dataUrl = await toSvg(el, { backgroundColor: '#ffffff' });
         const blob = new Blob([dataUrl], { type: 'image/svg+xml' });
         const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${chartTitle.replace(/[\s\/\\]/g, '_')}.svg`;
-        a.click();
+        const a = document.createElement('a'); a.href = url;
+        a.download = `${chartTitle.replace(/[\s\/\\]/g, '_')}.svg`; a.click();
         URL.revokeObjectURL(url);
       } else if (format === 'pdf') {
         const dataUrl = await toPng(el, { backgroundColor: '#ffffff', pixelRatio: 2, quality: 1 });
         const pdf = new jsPDF({ orientation: el.offsetWidth > el.offsetHeight ? 'landscape' : 'portrait' });
-        const pdfW = pdf.internal.pageSize.getWidth();
-        const imgW = el.offsetWidth;
-        const imgH = el.offsetHeight;
-        const ratio = imgH / imgW;
-        pdf.addImage(dataUrl, 'PNG', 0, 0, pdfW, pdfW * ratio);
+        const pw = pdf.internal.pageSize.getWidth();
+        pdf.addImage(dataUrl, 'PNG', 0, 0, pw, pw * el.offsetHeight / el.offsetWidth);
         pdf.save(`${chartTitle.replace(/[\s\/\\]/g, '_')}.pdf`);
       }
-    } catch (e) {
-      console.error('导出失败', e);
-    }
+    } catch (e) { console.error('导出失败', e); }
     setExportLoading(null);
   }, [chartTitle, buildHtml]);
+
+  if (!isChartable) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center max-w-xs">
+          <div className="mx-auto mb-3 w-14 h-14 rounded-2xl bg-zinc-50 border border-zinc-100 flex items-center justify-center">
+            <svg className="text-zinc-300" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M18 20V10M12 20V4M6 20v-6" /></svg>
+          </div>
+          <p className="text-sm font-medium text-zinc-400">当前数据不适合图表展示</p>
+          <p className="text-xs text-zinc-300 mt-1">需要至少一个文本列和一个数值列</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
       <div className="flex flex-col h-full">
-        <div className="flex items-center gap-2 mb-3 shrink-0 flex-wrap">
+        {/* ── 顶部栏：左信息 + 右操作 ── */}
+        <div className="flex items-center justify-between mb-3 shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            {operation && (
+              <span className="text-[11px] font-medium text-zinc-700 bg-zinc-100 px-2 py-1 rounded-md truncate max-w-[200px]" title={operation}>
+                {operation}
+              </span>
+            )}
+            <span className="text-[11px] text-zinc-400">{CHART_LABELS[chartType]}</span>
+            <span className="text-[10px] text-zinc-300 bg-zinc-100 px-1.5 py-0.5 rounded">{displayData.length} 项</span>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            {/* 渐变开关 */}
+            <button onClick={() => setUseGradient(v => !v)}
+              className={`text-[11px] px-2 py-1.5 rounded-lg border transition-all ${useGradient ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'text-zinc-400 border-transparent hover:bg-zinc-100'}`}
+              title={useGradient ? '渐变色' : '纯色'}
+            ><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" fill="currentColor" fillOpacity={useGradient ? 0.3 : 1} /></svg></button>
+
+            {/* 导出 */}
+            <button onClick={() => setExportDialog(true)}
+              className="text-[11px] px-2.5 py-1.5 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100 transition-all"
+              title="导出图表"
+            ><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg> 导出</button>
+
+            {/* 全屏 */}
+            <button onClick={() => setFullscreen(true)}
+              className="text-[11px] px-2.5 py-1.5 rounded-lg border border-transparent text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 transition-all"
+              title="全屏查看"
+            ><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3" /></svg></button>
+          </div>
+        </div>
+
+        {/* ── 类型/轴选择 + TopN ── */}
+        <div className="flex items-center gap-2 mb-2 shrink-0 flex-wrap">
           <div className="flex items-center bg-zinc-100/80 rounded-xl p-0.5 gap-0.5 shadow-inner">
             {chartTypeOptions.map(t => (
               <button key={t.key} onClick={() => switchChart(t.key)}
@@ -305,7 +348,7 @@ root.render(React.createElement(App));
           {chartType !== 'scatter' && chartType !== 'radar' && (
             <><span className="text-[9px] text-zinc-400 font-mono">X</span>
               <select value={validX} onChange={e => setXAxis(e.target.value)}
-                className="text-[11px] border border-zinc-200 rounded-lg px-2 py-1.5 text-zinc-600 bg-white hover:border-zinc-300 focus:border-indigo-300 focus:ring-1 focus:ring-indigo-200 transition-colors max-w-[130px] outline-none"
+                className="text-[11px] border border-zinc-200 rounded-lg px-2 py-1.5 text-zinc-600 bg-white hover:border-zinc-300 outline-none max-w-[130px]"
               >{categoryCols.map(c => <option key={c.key} value={c.key}>{c.title || c.key}</option>)}</select></>
           )}
 
@@ -314,49 +357,35 @@ root.render(React.createElement(App));
               {chartType === 'scatter' ? (
                 <>
                   <select value={validScatterX} onChange={e => setScatterX(e.target.value)}
-                    className="text-[11px] border border-zinc-200 rounded-lg px-2 py-1.5 text-zinc-600 bg-white max-w-[120px] outline-none"
+                    className="text-[11px] border border-zinc-200 rounded-lg px-2 py-1.5 text-zinc-600 bg-white outline-none max-w-[120px]"
                   >{numericCols.map(c => <option key={c.key} value={c.key}>{c.title || c.key}</option>)}</select>
                   <span className="text-[9px] text-zinc-400">vs</span>
                   <select value={validScatterY} onChange={e => setScatterY(e.target.value)}
-                    className="text-[11px] border border-zinc-200 rounded-lg px-2 py-1.5 text-zinc-600 bg-white max-w-[120px] outline-none"
+                    className="text-[11px] border border-zinc-200 rounded-lg px-2 py-1.5 text-zinc-600 bg-white outline-none max-w-[120px]"
                   >{numericCols.map(c => <option key={c.key} value={c.key}>{c.title || c.key}</option>)}</select>
                 </>
               ) : (
                 <select value={validY} onChange={e => setYAxis(e.target.value)}
-                  className="text-[11px] border border-zinc-200 rounded-lg px-2 py-1.5 text-zinc-600 bg-white hover:border-zinc-300 max-w-[120px] outline-none"
+                  className="text-[11px] border border-zinc-200 rounded-lg px-2 py-1.5 text-zinc-600 bg-white hover:border-zinc-300 outline-none max-w-[120px]"
                 >{numericCols.map(c => <option key={c.key} value={c.key}>{c.title || c.key}</option>)}</select>
               )}</>
           )}
 
-          <button onClick={() => setUseGradient(v => !v)}
-            className={`text-[11px] px-2 py-1.5 rounded-lg border transition-all ${useGradient ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'text-zinc-400 border-transparent hover:bg-zinc-100'}`}
-            title={useGradient ? '渐变色' : '纯色'}
-          ><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" fill="currentColor" fillOpacity={useGradient ? 0.3 : 1} /></svg></button>
-
-          {/* 导出按钮 */}
-          <button onClick={() => setExportDialog(true)}
-            className="text-[11px] px-2.5 py-1.5 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100 transition-all"
-            title="导出图表"
-          ><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg> 导出</button>
-
-          {/* 全屏按钮 */}
-          <button onClick={() => setFullscreen(true)}
-            className="text-[11px] px-2.5 py-1.5 rounded-lg border border-transparent text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 transition-all"
-            title="全屏查看"
-          ><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3" /></svg></button>
-
-          {rowCount > 20 && (
-            <div className="flex items-center gap-1 ml-auto">
-              <span className="text-[9px] text-zinc-400">显示</span>
-              <select value={topN} onChange={e => setTopN(Number(e.target.value))}
-                className="text-[11px] border border-zinc-200 rounded-lg px-2 py-1.5 text-zinc-600 bg-white outline-none"
-              ><option value={20}>Top 20</option><option value={50}>Top 50</option><option value={100}>Top 100</option><option value={0}>全部 ({rowCount})</option></select>
-            </div>
-          )}
+          <div className="ml-auto flex items-center gap-2">
+            {rowCount > 20 && (
+              <div className="flex items-center gap-1">
+                <span className="text-[9px] text-zinc-400">显示</span>
+                <select value={topN} onChange={e => setTopN(Number(e.target.value))}
+                  className="text-[11px] border border-zinc-200 rounded-lg px-2 py-1.5 text-zinc-600 bg-white outline-none"
+                ><option value={20}>Top 20</option><option value={50}>Top 50</option><option value={100}>Top 100</option><option value={0}>全部 ({rowCount})</option></select>
+              </div>
+            )}
+          </div>
         </div>
 
-        {stats && chartType !== 'scatter' && chartType !== 'radar' && chartType !== 'pie' && (
-          <div className="flex items-center gap-4 mb-2.5 shrink-0 text-[11px] text-zinc-400">
+        {/* ── 统计摘要 ── */}
+        {stats && !['scatter', 'radar', 'pie'].includes(chartType) && (
+          <div className="flex items-center gap-4 mb-2 shrink-0 text-[11px] text-zinc-400">
             <span>合计: <strong className="text-zinc-700">{fmt(stats.total)}</strong></span>
             <span>平均: <strong className="text-zinc-700">{fmt(stats.avg)}</strong></span>
             <span>最高: <strong className="text-zinc-700">{fmt(stats.max)}</strong></span>
@@ -364,6 +393,7 @@ root.render(React.createElement(App));
           </div>
         )}
 
+        {/* ── 图表区 ── */}
         <div ref={chartRef} className="flex-1 min-h-0 bg-white rounded-2xl border border-zinc-100 p-3 shadow-sm">
           {!displayData.length ? (
             <div className="flex items-center justify-center h-full"><p className="text-xs text-zinc-400">暂无数据</p></div>
@@ -374,17 +404,17 @@ root.render(React.createElement(App));
                 validY={chartType === 'scatter' ? validScatterY : validY}
                 validScatterX={validScatterX} validScatterY={validScatterY}
                 radarData={radarData} numericCols={numericCols}
-                useGradient={useGradient} animating={animating} />
+                useGradient={useGradient} animating={animating} yTitle={yTitle} />
             </ResponsiveContainer>
           )}
         </div>
       </div>
 
-      {/* ── 全屏模式 ── */}
+      {/* ── 全屏 ── */}
       {fullscreen && (
         <div className="fixed inset-0 z-50 bg-white flex flex-col">
           <div className="flex items-center justify-between px-6 py-3 border-b border-zinc-200 shrink-0">
-            <h2 className="text-base font-semibold text-zinc-800">{chartTitle}</h2>
+            <h2 className="text-base font-semibold text-zinc-800">{operation ? `${operation} — ` : ''}{chartTitle}</h2>
             <div className="flex items-center gap-2">
               <button onClick={() => { setFullscreen(false); setExportDialog(true); }}
                 className="text-xs px-3 py-1.5 rounded-md border border-zinc-200 text-zinc-600 hover:bg-zinc-50 transition-colors">导出</button>
@@ -396,11 +426,10 @@ root.render(React.createElement(App));
           <div className="flex-1 min-h-0 p-8">
             <ResponsiveContainer width="100%" height="100%">
               <ChartContent chartType={chartType} displayData={displayData}
-                validX={chartType === 'scatter' ? validScatterX : validX}
-                validY={chartType === 'scatter' ? validScatterY : validY}
+                validX={chartType === 'scatter' ? validScatterX : validX} validY={chartType === 'scatter' ? validScatterY : validY}
                 validScatterX={validScatterX} validScatterY={validScatterY}
                 radarData={radarData} numericCols={numericCols}
-                useGradient={useGradient} animating={animating} />
+                useGradient={useGradient} animating={animating} yTitle={yTitle} />
             </ResponsiveContainer>
           </div>
         </div>
@@ -444,11 +473,11 @@ function ExportOption({ label, desc, icon, format, loading, onClick }: {
   );
 }
 
-// ── 图表渲染子组件 ──
-function ChartContent({ chartType, displayData, validX, validY, validScatterX, validScatterY, radarData, numericCols, useGradient, animating }: {
+// ── 图表渲染 ──
+function ChartContent({ chartType, displayData, validX, validY, validScatterX, validScatterY, radarData, numericCols, useGradient, animating, yTitle }: {
   chartType: ChartType; displayData: RowData[]; validX: string; validY: string;
   validScatterX: string; validScatterY: string; radarData: RowData[];
-  numericCols: ColumnDef[]; useGradient: boolean; animating: boolean;
+  numericCols: ColumnDef[]; useGradient: boolean; animating: boolean; yTitle: string;
 }) {
   const commonGrid = <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" strokeOpacity={0.6} />;
   const commonX = <XAxis dataKey={validX} tick={{ fontSize: 11, fill: '#a1a1aa' }} axisLine={{ stroke: '#e4e4e7' }} tickLine={false} />;
@@ -457,13 +486,16 @@ function ChartContent({ chartType, displayData, validX, validY, validScatterX, v
   const commonLegend = <Legend wrapperStyle={{ fontSize: 11, paddingTop: 4 }} iconType="circle" iconSize={8} />;
   const isAnimated = animating;
   const gid = `cg-${chartType}`;
+  const labelFmt = (v: any) => Number(v ?? 0).toFixed(2);
 
   switch (chartType) {
     case 'pie':
       return (
         <PieChart>
           <Pie data={displayData} dataKey={validY} nameKey={validX} cx="50%" cy="50%" outerRadius="68%"
-            innerRadius={useGradient ? '30%' : 0} label={({ name }: any) => name} labelLine={{ stroke: '#d4d4d8', strokeWidth: 1 }}
+            innerRadius={useGradient ? '30%' : 0}
+            label={({ name, value }: any) => `${name}: ${Number(value ?? 0).toFixed(2)}`}
+            labelLine={{ stroke: '#d4d4d8', strokeWidth: 1 }}
             isAnimationActive={isAnimated} animationDuration={600} animationEasing="ease-out">
             {displayData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="white" strokeWidth={useGradient ? 2 : 0} />)}
           </Pie>
@@ -472,17 +504,19 @@ function ChartContent({ chartType, displayData, validX, validY, validScatterX, v
       );
     case 'line':
       return (
-        <LineChart data={displayData} margin={{ top: 8, right: 12, bottom: 4, left: -8 }}>
+        <LineChart data={displayData} margin={{ top: 16, right: 12, bottom: 4, left: -8 }}>
           {commonGrid}{commonX}{commonY}{commonTooltip}{commonLegend}
           <Line type="monotone" dataKey={validY} stroke="#6366f1" strokeWidth={2.5}
             dot={{ r: 3, fill: '#6366f1', strokeWidth: 1.5, stroke: '#fff' }}
             activeDot={{ r: 5, fill: '#6366f1', strokeWidth: 2, stroke: '#fff' }}
-            isAnimationActive={isAnimated} animationDuration={700} animationEasing="ease-out" />
+            isAnimationActive={isAnimated} animationDuration={700} animationEasing="ease-out">
+            <LabelList dataKey={validY} position="top" fontSize={10} fill="#52525b" formatter={labelFmt} />
+          </Line>
         </LineChart>
       );
     case 'area':
       return (
-        <AreaChart data={displayData} margin={{ top: 8, right: 12, bottom: 4, left: -8 }}>
+        <AreaChart data={displayData} margin={{ top: 16, right: 12, bottom: 4, left: -8 }}>
           <defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#6366f1" stopOpacity={0.25} /><stop offset="95%" stopColor="#6366f1" stopOpacity={0.02} /></linearGradient></defs>
           {commonGrid}{commonX}{commonY}{commonTooltip}
           <Area type="monotone" dataKey={validY} stroke="#6366f1" strokeWidth={2}
@@ -517,11 +551,13 @@ function ChartContent({ chartType, displayData, validX, validY, validScatterX, v
       );
     default:
       return (
-        <BarChart data={displayData} margin={{ top: 8, right: 12, bottom: 4, left: -8 }}>
+        <BarChart data={displayData} margin={{ top: 16, right: 12, bottom: 4, left: -8 }}>
           <defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#6366f1" stopOpacity={0.85} /><stop offset="100%" stopColor="#818cf8" stopOpacity={useGradient ? 0.4 : 0.85} /></linearGradient></defs>
           {commonGrid}{commonX}{commonY}{commonTooltip}
-          <Bar dataKey={validY} fill={useGradient ? `url(#${gid})` : '#6366f1'} radius={[6, 6, 0, 0]} maxBarSize={48}
-            isAnimationActive={isAnimated} animationDuration={500} animationEasing="ease-out" />
+          <Bar dataKey={validY} fill={useGradient ? `url(#${gid})` : '#6366f1'} radius={[4, 4, 0, 0]} maxBarSize={32}
+            isAnimationActive={isAnimated} animationDuration={500} animationEasing="ease-out">
+            {displayData.length <= 30 && <LabelList dataKey={validY} position="top" fontSize={10} fill="#52525b" formatter={labelFmt} />}
+          </Bar>
         </BarChart>
       );
   }

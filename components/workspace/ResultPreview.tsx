@@ -120,7 +120,7 @@ export default function ResultPreview({ columns, rows, summary, beforeData, flex
             </div>
           ) : hasResult ? (
             showChart ? (
-              <div className="h-full"><ChartView columns={displayColumns} rows={displayRows} /></div>
+              <div className="h-full"><ChartView columns={displayColumns} rows={displayRows} operation={operation} /></div>
             ) : (
               <div className="h-full"><DataTable columns={displayColumns} rows={displayRows} maxHeight="100%" resetKey={resetKey} onColumnReorder={handleColumnReorder} onRowReorder={handleRowReorder} resizable={true} editMode={arrangeMode ? 'editing' : 'locked'} /></div>
             )
