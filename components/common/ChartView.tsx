@@ -338,14 +338,21 @@ export default function ChartView({ columns, rows, operation }: ChartViewProps) 
                   title="更改图表颜色"
                 ><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4.5" /><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" /></svg></button>
                 {showColorPicker && (
-                  <div className="absolute top-full right-0 mt-1 bg-white rounded-xl shadow-xl border border-zinc-200 p-3 z-[70]">
+                  <div className="absolute top-full right-0 mt-1 bg-white rounded-xl shadow-xl border border-zinc-200 p-3 z-[70] min-w-[232px]">
                     <div className="grid grid-cols-7 gap-1.5">
                       {PRESET_COLORS.map(c => (
                         <button key={c} onClick={() => { setPrimaryColor(c); setShowColorPicker(false); }}
-                          className="w-6 h-6 rounded-lg border-2 transition-all hover:scale-110"
+                          className="w-7 h-7 rounded-lg border-2 transition-all hover:scale-110"
                           style={{ backgroundColor: c, borderColor: c === primaryColor ? '#18181b' : 'transparent' }}
                         />
                       ))}
+                    </div>
+                    <div className="mt-2 pt-2 border-t border-zinc-100">
+                      <div className="flex items-center gap-2">
+                        <input type="color" value={primaryColor} onChange={e => setPrimaryColor(e.target.value)}
+                          className="w-7 h-7 rounded-lg border border-zinc-200 cursor-pointer p-0.5" />
+                        <span className="text-[10px] text-zinc-400 font-mono">{primaryColor}</span>
+                      </div>
                     </div>
                   </div>
                 )}
