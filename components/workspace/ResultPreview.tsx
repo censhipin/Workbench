@@ -6,6 +6,7 @@ import { TABLE_STYLES } from '@/lib/tableStyles';
 import { exportData } from '@/lib/file-engine';
 import type { ExportFormat } from '@/lib/file-engine';
 import DataTable from '@/components/common/DataTable';
+import ChartView from '@/components/common/ChartView';
 import EmptyState from '@/components/common/EmptyState';
 import Badge from '@/components/common/Badge';
 
@@ -38,6 +39,7 @@ export default function ResultPreview({ columns, rows, summary, beforeData, flex
   const [styleIndex, setStyleIndex] = useState(-1);
   const [styleOpen, setStyleOpen] = useState(false);
   const [exportDialog, setExportDialog] = useState(false);
+  const [showChart, setShowChart] = useState(false);
   const styleRef = useRef<HTMLDivElement>(null);
   const displayColumns = localColumns || columns;
   const displayRows = localRows || rows;
@@ -95,6 +97,12 @@ export default function ResultPreview({ columns, rows, summary, beforeData, flex
                   排列
                 </button>
               )}
+              <button onClick={() => setShowChart(v => !v)} className={`flex items-center gap-1 text-xs px-2 py-1 rounded-md border transition-colors shrink-0 ${showChart ? 'bg-blue-50 text-blue-600 border-blue-200' : 'text-zinc-500 border-transparent hover:bg-zinc-100'}`} title={showChart ? '切换到表格' : '图表展示'}>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 20V10M12 20V4M6 20v-6" />
+                </svg>
+                {showChart ? '表格' : '图表'}
+              </button>
               <button onClick={() => setFullscreen(true)} className="flex items-center gap-1 text-xs px-2 py-1 rounded-md text-zinc-500 hover:bg-zinc-100 border border-transparent transition-colors" title="全屏查看">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3" /></svg>
                 全屏
@@ -111,7 +119,11 @@ export default function ResultPreview({ columns, rows, summary, beforeData, flex
               <span className="text-sm text-zinc-500">处理中...</span>
             </div>
           ) : hasResult ? (
-            <div className="h-full"><DataTable columns={displayColumns} rows={displayRows} maxHeight="100%" resetKey={resetKey} onColumnReorder={handleColumnReorder} onRowReorder={handleRowReorder} resizable={true} editMode={arrangeMode ? 'editing' : 'locked'} /></div>
+            showChart ? (
+              <div className="h-full"><ChartView columns={displayColumns} rows={displayRows} /></div>
+            ) : (
+              <div className="h-full"><DataTable columns={displayColumns} rows={displayRows} maxHeight="100%" resetKey={resetKey} onColumnReorder={handleColumnReorder} onRowReorder={handleRowReorder} resizable={true} editMode={arrangeMode ? 'editing' : 'locked'} /></div>
+            )
           ) : error ? (
               <EmptyState icon="⚠️" title="执行失败" description={error} />
             ) : (

@@ -16,9 +16,11 @@
     "package:dir": "npm run build:electron && electron-builder --win --config electron-builder.json --dir"
   },
   "dependencies": {
+    "exceljs": "^4.4.0",
     "next": "16.2.9",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "recharts": "^3.9.2",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
