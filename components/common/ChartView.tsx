@@ -120,18 +120,23 @@ export default function ChartView({ columns, rows }: ChartViewProps) {
     };
   }, [displayData, validY]);
 
-  // 雷达图需转置：把类别当 polar 轴，数值列当系列
+  // 雷达图：用当前选中的 X 列作为辐条（取唯一值），Y 列作为数值
   const radarData = useMemo(() => {
-    if (!categoryCols.length || !numericCols.length || chartType !== 'radar') return [];
-    return categoryCols.map(c => {
-      const row: any = { 类别: c.title || c.key };
-      numericCols.forEach(nc => {
-        const avg = rows.reduce((s, r) => s + (Number(r[nc.key]) || 0), 0) / (rows.length || 1);
-        row[nc.title || nc.key] = avg;
-      });
-      return row;
-    });
-  }, [categoryCols, numericCols, rows, chartType]);
+    if (chartType !== 'radar' || !validX || !validY) return [];
+    const seen = new Set<string>();
+    return displayData.filter(r => {
+      const v = String(r[validX] ?? '');
+      if (seen.has(v) || !v) return false;
+      seen.add(v);
+      return true;
+    }).map(r => ({
+      [validX]: r[validX],
+      [validY]: Number(r[validY]) || 0,
+    }));
+  }, [displayData, validX, validY, chartType]);
+
+  // 雷达图的 X/Y 选择开关：与普通图表一致
+  const isPolar = chartType === 'radar';
 
   if (!isChartable) {
     return (
@@ -260,7 +265,7 @@ export default function ChartView({ columns, rows }: ChartViewProps) {
       </div>
 
       {/* ── 统计摘要 ── */}
-      {stats && chartType !== 'scatter' && chartType !== 'radar' && (
+      {stats && chartType !== 'scatter' && chartType !== 'radar' && chartType !== 'pie' && (
         <div className="flex items-center gap-4 mb-2.5 shrink-0 text-[11px] text-zinc-400">
           <span>合计: <strong className="text-zinc-700">{fmt(stats.total)}</strong></span>
           <span>平均: <strong className="text-zinc-700">{fmt(stats.avg)}</strong></span>
@@ -280,8 +285,8 @@ export default function ChartView({ columns, rows }: ChartViewProps) {
             <ChartContent
               chartType={chartType}
               displayData={displayData}
-              validX={chartType === 'radar' ? '类别' : chartType === 'scatter' ? validScatterX : validX}
-              validY={chartType === 'radar' ? '' : chartType === 'scatter' ? validScatterY : validY}
+              validX={chartType === 'scatter' ? validScatterX : validX}
+              validY={chartType === 'scatter' ? validScatterY : validY}
               validScatterX={validScatterX}
               validScatterY={validScatterY}
               radarData={radarData}
@@ -392,22 +397,18 @@ function ChartContent({
       return (
         <RadarChart data={radarData} margin={{ top: 8, right: 16, bottom: 8, left: 16 }}>
           <PolarGrid stroke="#e4e4e7" />
-          <PolarAngleAxis dataKey="类别" tick={{ fontSize: 10, fill: '#71717a' }} />
+          <PolarAngleAxis dataKey={validX} tick={{ fontSize: 10, fill: '#71717a' }} />
           <PolarRadiusAxis tick={{ fontSize: 9, fill: '#a1a1aa' }} tickFormatter={(v: any) => fmt(Number(v))} />
           {commonTooltip}
-          <Legend wrapperStyle={{ fontSize: 11 }} iconType="circle" iconSize={8} />
-          {numericCols.slice(0, 4).map((c, i) => (
-            <Radar
-              key={c.key}
-              name={c.title || c.key}
-              dataKey={c.title || c.key}
-              stroke={COLORS[i % COLORS.length]}
-              fill={COLORS[i % COLORS.length]}
-              fillOpacity={useGradient ? 0.15 : 0.06}
-              strokeWidth={1.5}
-              isAnimationActive={isAnimated} animationDuration={600} animationEasing="ease-out"
-            />
-          ))}
+          <Radar
+            name={numericCols.find(c => c.key === validY)?.title || validY}
+            dataKey={validY}
+            stroke="#6366f1"
+            fill="#6366f1"
+            fillOpacity={useGradient ? 0.15 : 0.06}
+            strokeWidth={1.5}
+            isAnimationActive={isAnimated} animationDuration={600} animationEasing="ease-out"
+          />
         </RadarChart>
       );
 
