@@ -24,7 +24,16 @@ interface ChartViewProps {
 
 const COLORS_ARR = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
 const CHART_LABELS: Record<ChartType, string> = { bar: '柱状图', line: '折线图', area: '面积图', pie: '饼图', radar: '雷达图', scatter: '散点图' };
-const PRESET_COLORS = ['#6366f1', '#3b82f6', '#06b6d4', '#10b981', '#f59e0b', '#f97316', '#ef4444', '#ec4899', '#8b5cf6', '#78716c'];
+const PRESET_COLORS = [
+  // Row 1 —  vivid
+  '#6366f1', '#4f46e5', '#3b82f6', '#0ea5e9', '#06b6d4',
+  '#10b981', '#84cc16', '#eab308', '#f59e0b', '#f97316',
+  '#ef4444', '#ec4899', '#8b5cf6', '#78716c',
+  // Row 2 —  muted / pastel
+  '#a5b4fc', '#93c5fd', '#7dd3fc', '#5eead4', '#86efac',
+  '#bef264', '#fde68a', '#fdba74', '#fca5a5', '#fbcfe8',
+  '#c4b5fd', '#d6d3d1', '#94a3b8', '#64748b',
+];
 
 function lightenColor(hex: string, factor: number): string {
   const r = parseInt(hex.slice(1, 3), 16);
@@ -329,11 +338,11 @@ export default function ChartView({ columns, rows, operation }: ChartViewProps) 
                   title="更改图表颜色"
                 ><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4.5" /><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" /></svg></button>
                 {showColorPicker && (
-                  <div className="absolute bottom-full right-0 mb-2 bg-white rounded-xl shadow-xl border border-zinc-200 p-3 z-[70]">
-                    <div className="flex flex-wrap gap-1.5 w-[156px]">
+                  <div className="absolute top-full right-0 mt-1 bg-white rounded-xl shadow-xl border border-zinc-200 p-3 z-[70]">
+                    <div className="grid grid-cols-7 gap-1.5">
                       {PRESET_COLORS.map(c => (
                         <button key={c} onClick={() => { setPrimaryColor(c); setShowColorPicker(false); }}
-                          className="w-7 h-7 rounded-lg border-2 transition-all hover:scale-110"
+                          className="w-6 h-6 rounded-lg border-2 transition-all hover:scale-110"
                           style={{ backgroundColor: c, borderColor: c === primaryColor ? '#18181b' : 'transparent' }}
                         />
                       ))}
