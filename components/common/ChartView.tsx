@@ -236,28 +236,8 @@ export default function ChartView({ columns, rows, operation }: ChartViewProps) 
   }
 
   return (
-    <>
-      <div className="flex flex-col h-full">
-        <div className="flex items-center justify-between mb-3 shrink-0">
-          <div className="flex items-center gap-2 min-w-0">
-            {operation && <span className="text-[11px] font-medium text-zinc-700 bg-zinc-100 px-2 py-1 rounded-md truncate max-w-[200px]" title={operation}>{operation}</span>}
-            <span className="text-[11px] text-zinc-400">{CHART_LABELS[chartType]}</span>
-            <span className="text-[10px] text-zinc-300 bg-zinc-100 px-1.5 py-0.5 rounded">{displayData.length} 项</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <button onClick={() => setUseGradient(v => !v)}
-              className={'text-[11px] px-2 py-1.5 rounded-lg border transition-all ' + (useGradient ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'text-zinc-400 border-transparent hover:bg-zinc-100')}
-            ><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" fill="currentColor" fillOpacity={useGradient ? 0.3 : 1} /></svg></button>
-            <button onClick={() => setExportDialog(true)}
-              className="text-[11px] px-2.5 py-1.5 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100 transition-all"
-            ><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg> 导出</button>
-            <button onClick={() => setFullscreen(true)}
-              className="text-[11px] px-2.5 py-1.5 rounded-lg border border-transparent text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 transition-all"
-            ><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3" /></svg></button>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 mb-2 shrink-0 flex-wrap">
+    <div className="flex flex-col h-full relative">
+      <div className="flex items-center gap-2 mb-2 shrink-0 flex-wrap">
           <div className="flex items-center bg-zinc-100/80 rounded-xl p-0.5 gap-0.5 shadow-inner">
             {chartOpts.map(t => (
               <button key={t.key} onClick={() => switchChart(t.key)}
@@ -310,7 +290,25 @@ export default function ChartView({ columns, rows, operation }: ChartViewProps) 
           </div>
         )}
 
-        <div ref={chartRef} className="flex-1 min-h-0 bg-white rounded-2xl border border-zinc-100 p-3 shadow-sm">
+        <div ref={chartRef} className="flex-1 min-h-0 bg-white rounded-2xl border border-zinc-100 shadow-sm flex flex-col">
+          <div className="flex items-center justify-between px-3 pt-2.5 pb-1 shrink-0">
+            <div className="flex items-center gap-2 min-w-0">
+              {operation && <span className="text-[11px] font-medium text-zinc-700 truncate max-w-[160px]" title={operation}>{operation}</span>}
+              <span className="text-[11px] text-zinc-400">{CHART_LABELS[chartType]}</span>
+              <span className="text-[10px] text-zinc-400 bg-zinc-100 px-1.5 py-0.5 rounded">{displayData.length} 项</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <button onClick={() => setExportDialog(true)}
+                className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 transition-all"
+                title="导出图表"
+              ><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg></button>
+              <button onClick={() => setFullscreen(true)}
+                className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 transition-all"
+                title="全屏查看"
+              ><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3" /></svg></button>
+            </div>
+          </div>
+          <div className="flex-1 min-h-0 px-3 pb-3 pt-0.5">
           {!displayData.length ? (
             <div className="flex items-center justify-center h-full"><p className="text-xs text-zinc-400">暂无数据</p></div>
           ) : (
@@ -378,7 +376,7 @@ export default function ChartView({ columns, rows, operation }: ChartViewProps) 
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }
 
