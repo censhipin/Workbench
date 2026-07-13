@@ -24,6 +24,17 @@ interface ChartViewProps {
 
 const COLORS_ARR = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
 const CHART_LABELS: Record<ChartType, string> = { bar: '柱状图', line: '折线图', area: '面积图', pie: '饼图', radar: '雷达图', scatter: '散点图' };
+const PRESET_COLORS = ['#6366f1', '#3b82f6', '#06b6d4', '#10b981', '#f59e0b', '#f97316', '#ef4444', '#ec4899', '#8b5cf6', '#78716c'];
+
+function lightenColor(hex: string, factor: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const lr = Math.round(r + (255 - r) * factor);
+  const lg = Math.round(g + (255 - g) * factor);
+  const lb = Math.round(b + (255 - b) * factor);
+  return '#' + lr.toString(16).padStart(2, '0') + lg.toString(16).padStart(2, '0') + lb.toString(16).padStart(2, '0');
+}
 
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
@@ -55,6 +66,19 @@ export default function ChartView({ columns, rows, operation }: ChartViewProps) 
   const [fullscreen, setFullscreen] = useState(false);
   const [exportDialog, setExportDialog] = useState(false);
   const [exportLoading, setExportLoading] = useState<ExportFormat | null>(null);
+  const [primaryColor, setPrimaryColor] = useState('#6366f1');
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const colorPickerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (colorPickerRef.current && !colorPickerRef.current.contains(e.target as Node)) {
+        setShowColorPicker(false);
+      }
+    };
+    if (showColorPicker) document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showColorPicker]);
 
   const categoryCols = useMemo(() => columns.filter(c => c.type !== 'number'), [columns]);
   const numericCols = useMemo(() => columns.filter(c => c.type === 'number'), [columns]);
@@ -145,19 +169,19 @@ export default function ChartView({ columns, rows, operation }: ChartViewProps) 
         jsx = 'React.createElement(ResponsiveContainer,{width:"100%",height:"100%"},React.createElement(PieChart,{},React.createElement(Pie,{data,dataKey:"' + yAxis + '",nameKey:"' + xAxis + '",cx:"50%",cy:"50%",outerRadius:"70%",label:function(e){return e.name+":"+Number(e.value||0).toFixed(2)}},data.map(function(_,i){return React.createElement(Cell,{key:i,fill:["#6366f1","#10b981","#f59e0b","#ef4444","#8b5cf6","#ec4899","#06b6d4","#84cc16"][i%8]})})),React.createElement(Tooltip,{formatter:function(v){return Number(v||0).toFixed(2)}}),React.createElement(Legend,null)))';
       } else if (isRadar) {
         comps = 'RadarChart,Radar,PolarGrid,PolarAngleAxis,PolarRadiusAxis,Tooltip,ResponsiveContainer';
-        jsx = 'React.createElement(ResponsiveContainer,{width:"100%",height:"100%"},React.createElement(RadarChart,{data:rd,margin:{top:8,right:16,bottom:8,left:16}},React.createElement(PolarGrid,{stroke:"#e4e4e7"}),React.createElement(PolarAngleAxis,{dataKey:"' + xAxis + '",tick:{fontSize:10,fill:"#71717a"}}),React.createElement(PolarRadiusAxis,{tick:{fontSize:9,fill:"#a1a1aa"}}),React.createElement(Radar,{name:"' + yAxis + '",dataKey:"' + yAxis + '",stroke:"#6366f1",fill:"#6366f1",fillOpacity:0.15,strokeWidth:1.5}),React.createElement(Tooltip,{formatter:function(v){return Number(v||0).toFixed(2)}})))';
+        jsx = 'React.createElement(ResponsiveContainer,{width:"100%",height:"100%"},React.createElement(RadarChart,{data:rd,margin:{top:8,right:16,bottom:8,left:16}},React.createElement(PolarGrid,{stroke:"#e4e4e7"}),React.createElement(PolarAngleAxis,{dataKey:"' + xAxis + '",tick:{fontSize:10,fill:"#71717a"}}),React.createElement(PolarRadiusAxis,{tick:{fontSize:9,fill:"#a1a1aa"}}),React.createElement(Radar,{name:"' + yAxis + '",dataKey:"' + yAxis + '",stroke:"' + primaryColor + '",fill:"' + primaryColor + '",fillOpacity:0.15,strokeWidth:1.5}),React.createElement(Tooltip,{formatter:function(v){return Number(v||0).toFixed(2)}})))';
       } else if (isScatter) {
         comps = 'ScatterChart,Scatter,XAxis,YAxis,CartesianGrid,Tooltip,ResponsiveContainer';
-        jsx = 'React.createElement(ResponsiveContainer,{width:"100%",height:"100%"},React.createElement(ScatterChart,{margin:{top:8,right:16,bottom:8,left:0}},React.createElement(CartesianGrid,{strokeDasharray:"3 3",stroke:"#f0f0f0"}),React.createElement(XAxis,{dataKey:"' + sxAxis + '",tick:{fontSize:11,fill:"#a1a1aa"}}),React.createElement(YAxis,{dataKey:"' + syAxis + '",tick:{fontSize:11,fill:"#a1a1aa"}}),React.createElement(Scatter,{data,fill:"#6366f1",fillOpacity:0.7}),React.createElement(Tooltip,{formatter:function(v){return Number(v||0).toFixed(2)}})))';
+        jsx = 'React.createElement(ResponsiveContainer,{width:"100%",height:"100%"},React.createElement(ScatterChart,{margin:{top:8,right:16,bottom:8,left:0}},React.createElement(CartesianGrid,{strokeDasharray:"3 3",stroke:"#f0f0f0"}),React.createElement(XAxis,{dataKey:"' + sxAxis + '",tick:{fontSize:11,fill:"#a1a1aa"}}),React.createElement(YAxis,{dataKey:"' + syAxis + '",tick:{fontSize:11,fill:"#a1a1aa"}}),React.createElement(Scatter,{data,fill:"' + primaryColor + '",fillOpacity:0.7}),React.createElement(Tooltip,{formatter:function(v){return Number(v||0).toFixed(2)}})))';
       } else if (isLine) {
         comps = 'LineChart,Line,XAxis,YAxis,CartesianGrid,Tooltip,Legend,ResponsiveContainer,LabelList';
-        jsx = 'React.createElement(ResponsiveContainer,{width:"100%",height:"100%"},React.createElement(LineChart,{data,margin:{top:20,right:16,bottom:8,left:0}},React.createElement(CartesianGrid,{strokeDasharray:"3 3",stroke:"#f0f0f0"}),React.createElement(XAxis,{dataKey:"' + xAxis + '",tick:{fontSize:11,fill:"#a1a1aa"}}),React.createElement(YAxis,{tick:{fontSize:11,fill:"#a1a1aa"}}),React.createElement(Line,{type:"monotone",dataKey:"' + yAxis + '",stroke:"#6366f1",strokeWidth:2.5,dot:{r:3}},React.createElement(LabelList,{dataKey:"' + yAxis + '",position:"top",fontSize:10,fill:"#52525b",formatter:function(v){return Number(v||0).toFixed(2)}})),React.createElement(Tooltip,{formatter:function(v){return Number(v||0).toFixed(2)}}),React.createElement(Legend,null)))';
+        jsx = 'React.createElement(ResponsiveContainer,{width:"100%",height:"100%"},React.createElement(LineChart,{data,margin:{top:20,right:16,bottom:8,left:0}},React.createElement(CartesianGrid,{strokeDasharray:"3 3",stroke:"#f0f0f0"}),React.createElement(XAxis,{dataKey:"' + xAxis + '",tick:{fontSize:11,fill:"#a1a1aa"}}),React.createElement(YAxis,{tick:{fontSize:11,fill:"#a1a1aa"}}),React.createElement(Line,{type:"monotone",dataKey:"' + yAxis + '",stroke:"' + primaryColor + '",strokeWidth:2.5,dot:{r:3}},React.createElement(LabelList,{dataKey:"' + yAxis + '",position:"top",fontSize:10,fill:"#52525b",formatter:function(v){return Number(v||0).toFixed(2)}})),React.createElement(Tooltip,{formatter:function(v){return Number(v||0).toFixed(2)}}),React.createElement(Legend,null)))';
       } else if (isArea) {
         comps = 'AreaChart,Area,XAxis,YAxis,CartesianGrid,Tooltip,ResponsiveContainer';
-        jsx = 'React.createElement(ResponsiveContainer,{width:"100%",height:"100%"},React.createElement(AreaChart,{data,margin:{top:20,right:16,bottom:8,left:0}},React.createElement(CartesianGrid,{strokeDasharray:"3 3",stroke:"#f0f0f0"}),React.createElement(XAxis,{dataKey:"' + xAxis + '",tick:{fontSize:11,fill:"#a1a1aa"}}),React.createElement(YAxis,{tick:{fontSize:11,fill:"#a1a1aa"}}),React.createElement(Area,{type:"monotone",dataKey:"' + yAxis + '",stroke:"#6366f1",strokeWidth:2,fill:"#6366f1",fillOpacity:0.1}),React.createElement(Tooltip,{formatter:function(v){return Number(v||0).toFixed(2)}})))';
+        jsx = 'React.createElement(ResponsiveContainer,{width:"100%",height:"100%"},React.createElement(AreaChart,{data,margin:{top:20,right:16,bottom:8,left:0}},React.createElement(CartesianGrid,{strokeDasharray:"3 3",stroke:"#f0f0f0"}),React.createElement(XAxis,{dataKey:"' + xAxis + '",tick:{fontSize:11,fill:"#a1a1aa"}}),React.createElement(YAxis,{tick:{fontSize:11,fill:"#a1a1aa"}}),React.createElement(Area,{type:"monotone",dataKey:"' + yAxis + '",stroke:"' + primaryColor + '",strokeWidth:2,fill:"' + primaryColor + '",fillOpacity:0.1}),React.createElement(Tooltip,{formatter:function(v){return Number(v||0).toFixed(2)}})))';
       } else {
         comps = 'BarChart,Bar,XAxis,YAxis,CartesianGrid,Tooltip,ResponsiveContainer,LabelList';
-        jsx = 'React.createElement(ResponsiveContainer,{width:"100%",height:"100%"},React.createElement(BarChart,{data,margin:{top:20,right:16,bottom:8,left:0}},React.createElement(CartesianGrid,{strokeDasharray:"3 3",stroke:"#f0f0f0"}),React.createElement(XAxis,{dataKey:"' + xAxis + '",tick:{fontSize:11,fill:"#a1a1aa"}}),React.createElement(YAxis,{tick:{fontSize:11,fill:"#a1a1aa"}}),React.createElement(Bar,{dataKey:"' + yAxis + '",fill:"#6366f1",radius:[4,4,0,0]},React.createElement(LabelList,{dataKey:"' + yAxis + '",position:"top",fontSize:10,fill:"#52525b",formatter:function(v){return Number(v||0).toFixed(2)}})),React.createElement(Tooltip,{formatter:function(v){return Number(v||0).toFixed(2)}})))';
+        jsx = 'React.createElement(ResponsiveContainer,{width:"100%",height:"100%"},React.createElement(BarChart,{data,margin:{top:20,right:16,bottom:8,left:0}},React.createElement(CartesianGrid,{strokeDasharray:"3 3",stroke:"#f0f0f0"}),React.createElement(XAxis,{dataKey:"' + xAxis + '",tick:{fontSize:11,fill:"#a1a1aa"}}),React.createElement(YAxis,{tick:{fontSize:11,fill:"#a1a1aa"}}),React.createElement(Bar,{dataKey:"' + yAxis + '",fill:"' + primaryColor + '",radius:[4,4,0,0]},React.createElement(LabelList,{dataKey:"' + yAxis + '",position:"top",fontSize:10,fill:"#52525b",formatter:function(v){return Number(v||0).toFixed(2)}})),React.createElement(Tooltip,{formatter:function(v){return Number(v||0).toFixed(2)}})))';
       }
 
       const html =
@@ -219,7 +243,7 @@ export default function ChartView({ columns, rows, operation }: ChartViewProps) 
       }
     } catch (e) { console.error('导出失败', e); }
     setExportLoading(null);
-  }, [chartTitle, chartType, displayData, radarData, xAxis, yAxis, sxAxis, syAxis, download]);
+  }, [chartTitle, chartType, displayData, radarData, xAxis, yAxis, sxAxis, syAxis, download, primaryColor]);
 
   if (!isChartable) {
     return (
@@ -298,6 +322,25 @@ export default function ChartView({ columns, rows, operation }: ChartViewProps) 
               <span className="text-[10px] text-zinc-400 bg-zinc-100 px-1.5 py-0.5 rounded">{displayData.length} 项</span>
             </div>
             <div className="flex items-center gap-1">
+              <div ref={colorPickerRef} className="relative">
+                <button onClick={() => setShowColorPicker(p => !p)}
+                  className="p-1.5 rounded-lg transition-all"
+                  style={{ backgroundColor: primaryColor + '18', color: primaryColor }}
+                  title="更改图表颜色"
+                ><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4.5" /><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" /></svg></button>
+                {showColorPicker && (
+                  <div className="absolute bottom-full right-0 mb-2 bg-white rounded-xl shadow-xl border border-zinc-200 p-3 z-[70]">
+                    <div className="flex flex-wrap gap-1.5 w-[156px]">
+                      {PRESET_COLORS.map(c => (
+                        <button key={c} onClick={() => { setPrimaryColor(c); setShowColorPicker(false); }}
+                          className="w-7 h-7 rounded-lg border-2 transition-all hover:scale-110"
+                          style={{ backgroundColor: c, borderColor: c === primaryColor ? '#18181b' : 'transparent' }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
               <button onClick={() => setExportDialog(true)}
                 className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 transition-all"
                 title="导出图表"
@@ -318,7 +361,7 @@ export default function ChartView({ columns, rows, operation }: ChartViewProps) 
                 yKey={chartType === 'scatter' ? syAxis : yAxis}
                 sX={sxAxis} sY={syAxis}
                 radar={radarData} numericCols={numericCols}
-                gradient={useGradient} animate={animating} />
+                gradient={useGradient} animate={animating} primaryColor={primaryColor} />
             </ResponsiveContainer>
           )}
         </div>
@@ -343,7 +386,7 @@ export default function ChartView({ columns, rows, operation }: ChartViewProps) 
                 yKey={chartType === 'scatter' ? syAxis : yAxis}
                 sX={sxAxis} sY={syAxis}
                 radar={radarData} numericCols={numericCols}
-                gradient={useGradient} animate={animating} />
+                gradient={useGradient} animate={animating} primaryColor={primaryColor} />
             </ResponsiveContainer>
           </div>
         </div>
@@ -380,10 +423,10 @@ export default function ChartView({ columns, rows, operation }: ChartViewProps) 
   );
 }
 
-function ChartBody({ chartType, data, xKey, yKey, sX, sY, radar, numericCols, gradient, animate }: {
+function ChartBody({ chartType, data, xKey, yKey, sX, sY, radar, numericCols, gradient, animate, primaryColor }: {
   chartType: ChartType; data: RowData[]; xKey: string; yKey: string;
   sX: string; sY: string; radar: RowData[]; numericCols: ColumnDef[];
-  gradient: boolean; animate: boolean;
+  gradient: boolean; animate: boolean; primaryColor: string;
 }) {
   const g = <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" strokeOpacity={0.6} />;
   const xx = <XAxis dataKey={xKey} tick={{ fontSize: 11, fill: '#a1a1aa' }} axisLine={{ stroke: '#e4e4e7' }} tickLine={false} />;
@@ -413,9 +456,9 @@ function ChartBody({ chartType, data, xKey, yKey, sX, sY, radar, numericCols, gr
       return (
         <LineChart data={data} margin={{ top: 20, right: 12, bottom: 4, left: -8 }}>
           {g}{xx}{yy}{tt}{lg}
-          <Line type="monotone" dataKey={yKey} stroke="#6366f1" strokeWidth={2.5}
-            dot={{ r: 3, fill: '#6366f1', strokeWidth: 1.5, stroke: '#fff' }}
-            activeDot={{ r: 5, fill: '#6366f1', strokeWidth: 2, stroke: '#fff' }}
+          <Line type="monotone" dataKey={yKey} stroke={primaryColor} strokeWidth={2.5}
+            dot={{ r: 3, fill: primaryColor, strokeWidth: 1.5, stroke: '#fff' }}
+            activeDot={{ r: 5, fill: primaryColor, strokeWidth: 2, stroke: '#fff' }}
             isAnimationActive={anim} animationDuration={700} animationEasing="ease-out">
             <LabelList dataKey={yKey} position="top" fontSize={10} fill="#52525b" formatter={lf} />
           </Line>
@@ -424,11 +467,11 @@ function ChartBody({ chartType, data, xKey, yKey, sX, sY, radar, numericCols, gr
     case 'area':
       return (
         <AreaChart data={data} margin={{ top: 20, right: 12, bottom: 4, left: -8 }}>
-          <defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#6366f1" stopOpacity={0.25} /><stop offset="95%" stopColor="#6366f1" stopOpacity={0.02} /></linearGradient></defs>
+          <defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={primaryColor} stopOpacity={0.25} /><stop offset="95%" stopColor={primaryColor} stopOpacity={0.02} /></linearGradient></defs>
           {g}{xx}{yy}{tt}
-          <Area type="monotone" dataKey={yKey} stroke="#6366f1" strokeWidth={2}
-            fill={gradient ? 'url(#' + gid + ')' : '#6366f1'} fillOpacity={gradient ? 1 : 0.08}
-            dot={false} activeDot={{ r: 4, fill: '#6366f1', strokeWidth: 2, stroke: '#fff' }}
+          <Area type="monotone" dataKey={yKey} stroke={primaryColor} strokeWidth={2}
+            fill={gradient ? 'url(#' + gid + ')' : primaryColor} fillOpacity={gradient ? 1 : 0.08}
+            dot={false} activeDot={{ r: 4, fill: primaryColor, strokeWidth: 2, stroke: '#fff' }}
             isAnimationActive={anim} animationDuration={700} animationEasing="ease-out" />
         </AreaChart>
       );
@@ -440,7 +483,7 @@ function ChartBody({ chartType, data, xKey, yKey, sX, sY, radar, numericCols, gr
           <PolarRadiusAxis tick={{ fontSize: 9, fill: '#a1a1aa' }} tickFormatter={(v: any) => fmt(Number(v))} />
           {tt}
           <Radar name={numericCols.find(c => c.key === yKey)?.title || yKey} dataKey={yKey}
-            stroke="#6366f1" fill="#6366f1" fillOpacity={gradient ? 0.15 : 0.06} strokeWidth={1.5}
+            stroke={primaryColor} fill={primaryColor} fillOpacity={gradient ? 0.15 : 0.06} strokeWidth={1.5}
             isAnimationActive={anim} animationDuration={600} animationEasing="ease-out" />
         </RadarChart>
       );
@@ -453,17 +496,17 @@ function ChartBody({ chartType, data, xKey, yKey, sX, sY, radar, numericCols, gr
           <YAxis dataKey={sY} tick={{ fontSize: 11, fill: '#a1a1aa' }} axisLine={false} tickLine={false}
             name={numericCols.find(c => c.key === sY)?.title || sY} />
           {tt}
-          <Scatter data={data} fill="#6366f1" fillOpacity={0.7} stroke="transparent"
+          <Scatter data={data} fill={primaryColor} fillOpacity={0.7} stroke="transparent"
             isAnimationActive={anim} animationDuration={700} animationEasing="ease-out"
-            shape={({ cx, cy }: any) => <circle cx={cx} cy={cy} r={5} fill="#6366f1" fillOpacity={0.6} stroke="white" strokeWidth={1.5} />} />
+            shape={({ cx, cy }: any) => <circle cx={cx} cy={cy} r={5} fill={primaryColor} fillOpacity={0.6} stroke="white" strokeWidth={1.5} />} />
         </ScatterChart>
       );
     default:
       return (
         <BarChart data={data} margin={{ top: 20, right: 12, bottom: 4, left: -8 }}>
-          <defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#6366f1" stopOpacity={0.85} /><stop offset="100%" stopColor="#818cf8" stopOpacity={gradient ? 0.4 : 0.85} /></linearGradient></defs>
+          <defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={primaryColor} stopOpacity={0.85} /><stop offset="100%" stopColor={lightenColor(primaryColor, 0.15)} stopOpacity={gradient ? 0.4 : 0.85} /></linearGradient></defs>
           {g}{xx}{yy}{tt}
-          <Bar dataKey={yKey} fill={gradient ? 'url(#' + gid + ')' : '#6366f1'} radius={[4, 4, 0, 0]} maxBarSize={32}
+          <Bar dataKey={yKey} fill={gradient ? 'url(#' + gid + ')' : primaryColor} radius={[4, 4, 0, 0]} maxBarSize={32}
             isAnimationActive={anim} animationDuration={500} animationEasing="ease-out">
             {data.length <= 30 && <LabelList dataKey={yKey} position="top" fontSize={10} fill="#52525b" formatter={lf} />}
           </Bar>
