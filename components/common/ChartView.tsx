@@ -20,6 +20,7 @@ const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'
 
 export default function ChartView({ columns, rows }: ChartViewProps) {
   const [chartType, setChartType] = useState<ChartType>('bar');
+  const [topN, setTopN] = useState(20);
 
   const categoryCols = useMemo(() => columns.filter(c => c.type !== 'number'), [columns]);
   const numericCols = useMemo(() => columns.filter(c => c.type === 'number'), [columns]);
@@ -45,6 +46,13 @@ export default function ChartView({ columns, rows }: ChartViewProps) {
 
   const validX = columns.find(c => c.key === xAxis) ? xAxis : defaultX;
   const validY = numericCols.find(c => c.key === yAxis) ? yAxis : defaultY;
+
+  const displayData = useMemo(() => {
+    if (topN <= 0 || rows.length <= topN) return rows;
+    return [...rows].sort((a, b) => (Number(b[validY]) || 0) - (Number(a[validY]) || 0)).slice(0, topN);
+  }, [rows, validY, topN]);
+
+  const rowCount = rows.length;
 
   if (!isChartable) {
     return (
@@ -96,21 +104,37 @@ export default function ChartView({ columns, rows }: ChartViewProps) {
             <option key={c.key} value={c.key}>{c.title || c.key}</option>
           ))}
         </select>
+
+        {rowCount > 20 && (
+          <div className="flex items-center gap-1 ml-auto">
+            <span className="text-[10px] text-zinc-400">显示</span>
+            <select
+              value={topN}
+              onChange={e => setTopN(Number(e.target.value))}
+              className="text-xs border border-zinc-200 rounded-md px-2 py-1 text-zinc-600 bg-white"
+            >
+              <option value={20}>Top 20</option>
+              <option value={50}>Top 50</option>
+              <option value={100}>Top 100</option>
+              <option value={0}>全部 ({rowCount})</option>
+            </select>
+          </div>
+        )}
       </div>
 
       <div className="flex-1 min-h-0">
         <ResponsiveContainer width="100%" height="100%">
           {chartType === 'pie' ? (
             <PieChart>
-              <Pie data={rows} dataKey={validY} nameKey={validX} cx="50%" cy="50%" outerRadius="70%" label={function ({ name, value }: { name?: string; value?: number }) { return (name ?? '') + ': ' + (value ?? 0); }}>
-                {rows.map((_, i) => (
+              <Pie data={displayData} dataKey={validY} nameKey={validX} cx="50%" cy="50%" outerRadius="70%" label={function ({ name, value }: { name?: string; value?: number }) { return (name ?? '') + ': ' + (value ?? 0); }}>
+                {displayData.map((_, i) => (
                   <Cell key={i} fill={COLORS[i % COLORS.length]} />
                 ))}
               </Pie>
               <Tooltip />
             </PieChart>
           ) : chartType === 'line' ? (
-            <LineChart data={rows} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+            <LineChart data={displayData} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey={validX} tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} />
@@ -119,7 +143,7 @@ export default function ChartView({ columns, rows }: ChartViewProps) {
               <Line type="monotone" dataKey={validY} stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} />
             </LineChart>
           ) : (
-            <BarChart data={rows} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+            <BarChart data={displayData} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey={validX} tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} />
