@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { ColumnDef, RowData } from '@/lib/types';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -138,6 +138,127 @@ export default function ChartView({ columns, rows }: ChartViewProps) {
   // 雷达图的 X/Y 选择开关：与普通图表一致
   const isPolar = chartType === 'radar';
 
+  // ── 导出交互式 HTML ──
+  const exportAsHtml = useCallback(() => {
+    const chartTitle = `${chartTypeOptions.find(t => t.key === chartType)?.label || chartType} — ${validX} × ${validY}`;
+    const dataJson = JSON.stringify(displayData);
+    const rdJson = JSON.stringify(radarData);
+    const label = chartType === 'pie' ? '饼图' : chartTypeOptions.find(t => t.key === chartType)?.label || chartType;
+
+    const isPie = chartType === 'pie';
+    const isRadar = chartType === 'radar';
+    const isScatter = chartType === 'scatter';
+    const isLine = chartType === 'line';
+    const isArea = chartType === 'area';
+
+    let chartJsx = '';
+    if (isPie) {
+      chartJsx = `React.createElement(ResponsiveContainer,{width:'100%',height:'100%'},
+  React.createElement(PieChart,{},
+    React.createElement(Pie,{data,dataKey:'${validY}',nameKey:'${validX}',cx:'50%',cy:'50%',outerRadius:'70%',label:e=>e.name},
+      data.map((_,i)=>React.createElement(Cell,{key:i,fill:['#6366f1','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#06b6d4','#84cc16'][i%8]})),
+    ),
+    React.createElement(Tooltip,{formatter:v=>Number(v??0).toFixed(2)}),
+    React.createElement(Legend,null),
+  )
+)`;
+    } else if (isRadar) {
+      chartJsx = `React.createElement(ResponsiveContainer,{width:'100%',height:'100%'},
+  React.createElement(RadarChart,{data:rd,margin:{top:8,right:16,bottom:8,left:16}},
+    React.createElement(PolarGrid,{stroke:'#e4e4e7'}),
+    React.createElement(PolarAngleAxis,{dataKey:'${validX}',tick:{fontSize:10,fill:'#71717a'}}),
+    React.createElement(PolarRadiusAxis,{tick:{fontSize:9,fill:'#a1a1aa'}}),
+    React.createElement(Radar,{name:'${validY}',dataKey:'${validY}',stroke:'#6366f1',fill:'#6366f1',fillOpacity:.15,strokeWidth:1.5}),
+    React.createElement(Tooltip,{formatter:v=>Number(v??0).toFixed(2)}),
+  )
+)`;
+    } else if (isScatter) {
+      chartJsx = `React.createElement(ResponsiveContainer,{width:'100%',height:'100%'},
+  React.createElement(ScatterChart,{margin:{top:8,right:16,bottom:8,left:0}},
+    React.createElement(CartesianGrid,{strokeDasharray:'3 3',stroke:'#f0f0f0'}),
+    React.createElement(XAxis,{dataKey:'${validScatterX}',tick:{fontSize:11,fill:'#a1a1aa'}}),
+    React.createElement(YAxis,{dataKey:'${validScatterY}',tick:{fontSize:11,fill:'#a1a1aa'}}),
+    React.createElement(Scatter,{data,fill:'#6366f1',fillOpacity:.7}),
+    React.createElement(Tooltip,{formatter:v=>Number(v??0).toFixed(2)}),
+  )
+)`;
+    } else if (isLine) {
+      chartJsx = `React.createElement(ResponsiveContainer,{width:'100%',height:'100%'},
+  React.createElement(LineChart,{data,margin:{top:8,right:16,bottom:8,left:0}},
+    React.createElement(CartesianGrid,{strokeDasharray:'3 3',stroke:'#f0f0f0'}),
+    React.createElement(XAxis,{dataKey:'${validX}',tick:{fontSize:11,fill:'#a1a1aa'}}),
+    React.createElement(YAxis,{tick:{fontSize:11,fill:'#a1a1aa'}}),
+    React.createElement(Line,{type:'monotone',dataKey:'${validY}',stroke:'#6366f1',strokeWidth:2.5,dot:{r:3}}),
+    React.createElement(Tooltip,{formatter:v=>Number(v??0).toFixed(2)}),
+    React.createElement(Legend,null),
+  )
+)`;
+    } else if (isArea) {
+      chartJsx = `React.createElement(ResponsiveContainer,{width:'100%',height:'100%'},
+  React.createElement(AreaChart,{data,margin:{top:8,right:16,bottom:8,left:0}},
+    React.createElement(CartesianGrid,{strokeDasharray:'3 3',stroke:'#f0f0f0'}),
+    React.createElement(XAxis,{dataKey:'${validX}',tick:{fontSize:11,fill:'#a1a1aa'}}),
+    React.createElement(YAxis,{tick:{fontSize:11,fill:'#a1a1aa'}}),
+    React.createElement(Area,{type:'monotone',dataKey:'${validY}',stroke:'#6366f1',strokeWidth:2,fill:'#6366f1',fillOpacity:.1}),
+    React.createElement(Tooltip,{formatter:v=>Number(v??0).toFixed(2)}),
+  )
+)`;
+    } else {
+      chartJsx = `React.createElement(ResponsiveContainer,{width:'100%',height:'100%'},
+  React.createElement(BarChart,{data,margin:{top:8,right:16,bottom:8,left:0}},
+    React.createElement(CartesianGrid,{strokeDasharray:'3 3',stroke:'#f0f0f0'}),
+    React.createElement(XAxis,{dataKey:'${validX}',tick:{fontSize:11,fill:'#a1a1aa'}}),
+    React.createElement(YAxis,{tick:{fontSize:11,fill:'#a1a1aa'}}),
+    React.createElement(Bar,{dataKey:'${validY}',fill:'#6366f1',radius:[6,6,0,0]}),
+    React.createElement(Tooltip,{formatter:v=>Number(v??0).toFixed(2)}),
+    React.createElement(Legend,null),
+  )
+)`;
+    }
+
+    const html = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>${chartTitle}</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/recharts@2/umd/Recharts.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f5f5f7;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px}
+.card{background:#fff;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.08);padding:24px;width:100%;max-width:960px;height:80vh;display:flex;flex-direction:column}
+h2{font-size:15px;font-weight:600;color:#18181b;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #f0f0f0}
+.chart-wrap{flex:1;min-height:0}
+.tip{text-align:center;font-size:11px;color:#a1a1aa;margin-top:12px}
+</style>
+</head><body>
+<div class="card" id="root">
+<h2>${chartTitle}</h2>
+<div class="chart-wrap" id="chart-container"></div>
+<div class="tip">💡 鼠标悬浮查看数据 · 完全交互</div>
+</div>
+<script type="text/babel">
+const {${isPie ? 'PieChart,Pie,Cell,Tooltip,Legend,ResponsiveContainer' : isRadar ? 'RadarChart,Radar,PolarGrid,PolarAngleAxis,PolarRadiusAxis,Tooltip,ResponsiveContainer' : isScatter ? 'ScatterChart,Scatter,XAxis,YAxis,CartesianGrid,Tooltip,ResponsiveContainer' : isLine ? 'LineChart,Line,XAxis,YAxis,CartesianGrid,Tooltip,Legend,ResponsiveContainer' : isArea ? 'AreaChart,Area,XAxis,YAxis,CartesianGrid,Tooltip,ResponsiveContainer' : 'BarChart,Bar,XAxis,YAxis,CartesianGrid,Tooltip,Legend,ResponsiveContainer'}} = Recharts;
+const data = ${dataJson};
+const rd = ${rdJson};
+
+function App() { return ${chartJsx} }
+
+const root = ReactDOM.createRoot(document.getElementById('chart-container'));
+root.render(React.createElement(App));
+</script>
+</body></html>`;
+
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${chartTitle.replace(/[\s\/\\]/g, '_')}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [chartType, displayData, validX, validY, useGradient, validScatterX, validScatterY, radarData, chartTypeOptions]);
+
   if (!isChartable) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -245,6 +366,18 @@ export default function ChartView({ columns, rows }: ChartViewProps) {
             <defs><linearGradient id="gg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="currentColor" /><stop offset="100%" stopColor="currentColor" stopOpacity="0.3" /></linearGradient></defs>
             <rect x="3" y="3" width="18" height="18" rx="2" fill="url(#gg)" />
           </svg>
+        </button>
+
+        {/* 导出 HTML */}
+        <button
+          onClick={exportAsHtml}
+          className="text-[11px] px-2.5 py-1.5 rounded-lg border border-zinc-200 text-zinc-500 hover:bg-zinc-50 hover:text-zinc-700 transition-all ml-1"
+          title="导出交互式 HTML（动态可交互）"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
+          </svg>
+          导出
         </button>
 
         {rowCount > 20 && (
