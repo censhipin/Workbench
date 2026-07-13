@@ -61,7 +61,7 @@ export async function parseIntentWithAI(
 
   // 尝试 DeepSeek
   addTraceStep('parse', 'ok', '调用 DeepSeek AI');
-  const aiResult = await deepseekUnderstand(prompt, tableName, availableColumns, rows);
+  const aiResult = await deepseekUnderstand(prompt, tableName, availableColumns, rows, fileNames);
 
   // ★ 额度/Key 无效 → 不降级，直接返回错误
   if (aiResult.isQuotaError) {
@@ -140,7 +140,7 @@ export async function parseIntentWithAI(
  */
 function shouldResolveOperation(operation: string | null): boolean {
   if (!operation) return false;
-  return !['formula', 'update', 'pipeline', 'select', 'remove', 'rename'].includes(operation);
+  return !(['formula', 'update', 'pipeline', 'select', 'remove', 'rename', 'merge', 'match'] as string[]).includes(operation);
 }
 
 /**

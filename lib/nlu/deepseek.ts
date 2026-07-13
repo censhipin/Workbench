@@ -17,7 +17,8 @@ import { getApiKey } from '@/lib/api-key';
 function buildSystemPrompt(
   tableName: string,
   columns: ColumnDef[],
-  sampleData: Record<string, string[]>
+  sampleData: Record<string, string[]>,
+  extraTables?: string[],
 ): string {
   const colDescriptions = columns.map(c => {
     const sample = sampleData[c.key];
@@ -26,11 +27,17 @@ function buildSystemPrompt(
     return `  - "${c.title}" (类型: ${c.type}) 示例: ${sampleStr}`;
   }).join('\n');
 
+  let extraTableInfo = '';
+  if (extraTables && extraTables.length > 0) {
+    extraTableInfo = '\n\n当前任务中其他表: ' + extraTables.join(', ');
+    extraTableInfo += '\n当指令涉及合并或匹配时，可以从这些表中选取目标表。';
+  }
+
   return `你是一个数据分析助手。你需要将用户的自然语言指令转换为标准化的 JSON 执行计划。
 
 当前表名称: "${tableName}"
 当前表的列:
-${colDescriptions}
+${colDescriptions}${extraTableInfo}
 
 可执行动作列表:
 - sort: 排序（需 columnHint + direction: asc/desc）
@@ -39,7 +46,7 @@ ${colDescriptions}
 - delete: 删除数据（需 conditions）
 - dedup: 去重（需 columnHints）
 - match: 多表匹配（需 matchKeyHint + lookupTableHint）
-- merge: 多表合并
+- merge: 多表合并（将多行数据堆叠合并，注意：这是表级别的合并，不是把两列内容拼接到一列）
 - clean: 数据清洗
 - select: 只保留指定列（需 columns 数组，如 ["姓名","电话"]）
 - remove: 删除指定列（需 columns 数组，如 ["邮箱","身份证"]）
@@ -352,11 +359,12 @@ export async function deepseekUnderstand(
   prompt: string,
   tableName: string,
   columns: ColumnDef[],
-  rows: Record<string, string | number | null>[]
+  rows: Record<string, string | number | null>[],
+  fileNames?: string[]
 ): Promise<DeepSeekResult> {
   try {
     const sampleData = getSampleRows(columns, rows, 10);
-    const systemPrompt = buildSystemPrompt(tableName, columns, sampleData);
+    const systemPrompt = buildSystemPrompt(tableName, columns, sampleData, fileNames);
     const userMessage = buildUserMessage(prompt);
     const raw = await callDeepSeek(systemPrompt, userMessage);
     const plan = parseResponse(raw);

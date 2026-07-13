@@ -126,19 +126,19 @@ export default function ChartView({ columns, rows }: ChartViewProps) {
         <ResponsiveContainer width="100%" height="100%">
           {chartType === 'pie' ? (
             <PieChart>
-              <Pie data={displayData} dataKey={validY} nameKey={validX} cx="50%" cy="50%" outerRadius="70%" label={function ({ name, value }: { name?: string; value?: number }) { return (name ?? '') + ': ' + (value ?? 0); }}>
+              <Pie data={displayData} dataKey={validY} nameKey={validX} cx="50%" cy="50%" outerRadius="70%" label={function ({ name, value }: { name?: string; value?: number }) { return (name ?? '') + ': ' + (Number(value ?? 0)).toFixed(2); }}>
                 {displayData.map((_, i) => (
                   <Cell key={i} fill={COLORS[i % COLORS.length]} />
                 ))}
               </Pie>
-              <Tooltip />
+              <Tooltip formatter={(v: any) => Number(v ?? 0).toFixed(2)} />
             </PieChart>
           ) : chartType === 'line' ? (
             <LineChart data={displayData} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey={validX} tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip />
+              <YAxis tick={{ fontSize: 11 }} tickFormatter={(v: any) => Number(v ?? 0).toFixed(2)} />
+              <Tooltip formatter={(v: any) => Number(v ?? 0).toFixed(2)} />
               <Legend />
               <Line type="monotone" dataKey={validY} stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} />
             </LineChart>
@@ -146,8 +146,8 @@ export default function ChartView({ columns, rows }: ChartViewProps) {
             <BarChart data={displayData} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey={validX} tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip />
+              <YAxis tick={{ fontSize: 11 }} tickFormatter={(v: any) => Number(v ?? 0).toFixed(2)} />
+              <Tooltip formatter={(v: any) => Number(v ?? 0).toFixed(2)} />
               <Legend />
               <Bar dataKey={validY} fill="#3b82f6" radius={[4, 4, 0, 0]} />
             </BarChart>

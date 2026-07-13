@@ -193,7 +193,14 @@ export function useExecutionController(
       const allFileNames = [...fileNames];
       if (taskSheets.length > 0) {
         for (const ref of taskSheets) {
-          if (ref.fileId === selectedFile?.id) continue;
+          if (ref.fileId === selectedFile?.id) {
+            // 同文件的不同 sheet：把 sheet 名加入文件列表
+            const sheet = selectedFile.sheets.find(s => s.name === ref.sheetName);
+            if (sheet && ref.sheetName !== activeSheet && !allFileNames.includes(ref.sheetName)) {
+              allFileNames.push(ref.sheetName);
+            }
+            continue;
+          }
           const tf = files.find(f => f.id === ref.fileId);
           if (tf && !allFileNames.includes(tf.name)) allFileNames.push(tf.name);
         }
