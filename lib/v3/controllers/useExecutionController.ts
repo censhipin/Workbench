@@ -222,7 +222,7 @@ export function useExecutionController(
         return;
       }
 
-      const skipResolve = ['formula', 'update', 'pipeline', 'select', 'remove', 'rename', 'pivot'].includes(result.intent.operation);
+      const skipResolve = ['formula', 'update', 'pipeline', 'select', 'remove', 'rename', 'pivot', 'merge', 'match'].includes(result.intent.operation);
       const ambResult = skipResolve ? null : AmbiguityDetector.detect(result.intent, result.resolution.candidates);
       if (ambResult) {
         const preview = AmbiguityDetector.buildPreviewPlan(result.intent, dataset.rows.length, 0);

@@ -147,7 +147,7 @@ function shouldResolveOperation(operation: string | null): boolean {
  * 判断 TaskPlan action 是否需要列解析
  */
 function shouldResolveColumns(action: string): boolean {
-  return !['formula', 'update', 'pipeline', 'select', 'remove', 'rename'].includes(action);
+  return !['formula', 'update', 'pipeline', 'select', 'remove', 'rename', 'merge', 'match'].includes(action);
 }
 
 /**
