@@ -13,6 +13,7 @@
   "extraMetadata": {
     "main": "electron-out/main.js"
   },
+  "publish": ["github"],
   "win": {
     "target": [
       {

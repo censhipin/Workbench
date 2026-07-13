@@ -1,4 +1,5 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, ipcMain } from 'electron';
+import { autoUpdater } from 'electron-updater';
 import { spawn, ChildProcess, execFileSync } from 'child_process';
 import * as path from 'path';
 import * as http from 'http';
@@ -8,6 +9,48 @@ let serverProcess: ChildProcess | null = null;
 
 const isDev = !app.isPackaged;
 const PORT = Number(process.env.PORT) || 3000;
+
+// ── 自动更新 ──
+autoUpdater.autoDownload = false;
+autoUpdater.autoInstallOnAppQuit = true;
+
+function setupAutoUpdater() {
+  if (isDev) return;
+
+  autoUpdater.checkForUpdates();
+
+  autoUpdater.on('update-available', (info) => {
+    mainWindow?.webContents.send('update-available', info.version);
+  });
+
+  autoUpdater.on('update-not-available', () => {
+    mainWindow?.webContents.send('update-not-available');
+  });
+
+  autoUpdater.on('download-progress', (progress) => {
+    mainWindow?.webContents.send('download-progress', progress.percent);
+  });
+
+  autoUpdater.on('update-downloaded', () => {
+    mainWindow?.webContents.send('update-downloaded');
+  });
+
+  autoUpdater.on('error', (err) => {
+    mainWindow?.webContents.send('update-error', err.message);
+  });
+
+  ipcMain.on('check-for-update', () => {
+    autoUpdater.checkForUpdates();
+  });
+
+  ipcMain.on('download-update', () => {
+    autoUpdater.downloadUpdate();
+  });
+
+  ipcMain.on('install-update', () => {
+    autoUpdater.quitAndInstall(false, true);
+  });
+}
 
 /** 生产环境：用 Electron 内置的 Node.js 启动 standalone server */
 function startProdServer(): Promise<void> {
@@ -146,6 +189,7 @@ function createWindow() {
 
 app.whenReady().then(() => {
   createWindow();
+  setupAutoUpdater();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });

@@ -16,6 +16,7 @@
     "package:dir": "npm run build:electron && electron-builder --win --config electron-builder.json --dir"
   },
   "dependencies": {
+    "electron-updater": "^6.8.9",
     "exceljs": "^4.4.0",
     "html-to-image": "^1.11.13",
     "jspdf": "^4.2.1",

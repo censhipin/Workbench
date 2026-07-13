@@ -34,6 +34,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 const electron_1 = require("electron");
+const electron_updater_1 = require("electron-updater");
 const child_process_1 = require("child_process");
 const path = __importStar(require("path"));
 const http = __importStar(require("http"));
@@ -41,6 +42,38 @@ let mainWindow = null;
 let serverProcess = null;
 const isDev = !electron_1.app.isPackaged;
 const PORT = Number(process.env.PORT) || 3000;
+// ── 自动更新 ──
+electron_updater_1.autoUpdater.autoDownload = false;
+electron_updater_1.autoUpdater.autoInstallOnAppQuit = true;
+function setupAutoUpdater() {
+    if (isDev)
+        return;
+    electron_updater_1.autoUpdater.checkForUpdates();
+    electron_updater_1.autoUpdater.on('update-available', (info) => {
+        mainWindow?.webContents.send('update-available', info.version);
+    });
+    electron_updater_1.autoUpdater.on('update-not-available', () => {
+        mainWindow?.webContents.send('update-not-available');
+    });
+    electron_updater_1.autoUpdater.on('download-progress', (progress) => {
+        mainWindow?.webContents.send('download-progress', progress.percent);
+    });
+    electron_updater_1.autoUpdater.on('update-downloaded', () => {
+        mainWindow?.webContents.send('update-downloaded');
+    });
+    electron_updater_1.autoUpdater.on('error', (err) => {
+        mainWindow?.webContents.send('update-error', err.message);
+    });
+    electron_1.ipcMain.on('check-for-update', () => {
+        electron_updater_1.autoUpdater.checkForUpdates();
+    });
+    electron_1.ipcMain.on('download-update', () => {
+        electron_updater_1.autoUpdater.downloadUpdate();
+    });
+    electron_1.ipcMain.on('install-update', () => {
+        electron_updater_1.autoUpdater.quitAndInstall(false, true);
+    });
+}
 /** 生产环境：用 Electron 内置的 Node.js 启动 standalone server */
 function startProdServer() {
     return new Promise((resolve, reject) => {
@@ -165,6 +198,7 @@ function createWindow() {
 }
 electron_1.app.whenReady().then(() => {
     createWindow();
+    setupAutoUpdater();
     electron_1.app.on('activate', () => {
         if (electron_1.BrowserWindow.getAllWindows().length === 0)
             createWindow();
