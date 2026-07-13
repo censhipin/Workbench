@@ -308,6 +308,10 @@ export function runExecutionEngine(
     const taskSheets = taskFiles
       .filter((f) => f.sheets[0] && f.id !== mainFile?.id)
       .map((f) => ({ columns: f.sheets[0].columns, rows: f.sheets[0].rows, name: f.sheets[0].name }));
+    // 把当前激活的 sheet 也加入 taskSheets，供合并/匹配等操作使用
+    if (currentSheet && currentSheetName) {
+      taskSheets.unshift({ columns: currentSheet.columns, rows: currentSheet.rows, name: currentSheetName });
+    }
     const rowsBefore = currentSheet.rows.length ?? 0;
 
     addTraceStep('execute', 'ok', `V2 引擎执行: ${repairedPlan.type}`);
