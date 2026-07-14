@@ -619,6 +619,7 @@ export default function Home() {
           rows={currentSheet.rows}
           columns={currentSheet.columns}
           inferences={inferences}
+          onCellEdit={handleCellEdit}
         />
       )}
 
