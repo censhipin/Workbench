@@ -17,7 +17,8 @@ autoUpdater.autoInstallOnAppQuit = true;
 function setupAutoUpdater() {
   if (isDev) return;
 
-  autoUpdater.checkForUpdates();
+  // 启动时不自动 check — 由渲染进程 UpdateNotifier mount 时触发
+  // 以及用户在"关于"面板点击"检查更新"时触发
 
   autoUpdater.on('update-available', (info) => {
     mainWindow?.webContents.send('update-available', info.version);

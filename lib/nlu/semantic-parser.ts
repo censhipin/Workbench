@@ -639,7 +639,7 @@ export class RuleBasedSemanticParser implements SemanticTaskParser {
     const colTitles = availableColumns.map(c => c.title).filter(Boolean);
 
     // 匹配模式：如果 X 大于/小于/等于 Y，则/就 A，否则/不然 B
-    const opMap: Record<string, string> = { '大于': '>', '超过': '>', '大于等于': '>=', '不小于': '>=', '小于': '<', '低于': '<', '小于等于': '<=', '不大于': '<=', '等于': '=', '不等于': '!=' };
+    const opMap: Record<string, string> = { '大于': '>', '高于': '>', '超过': '>', '大于等于': '>=', '不小于': '>=', '小于': '<', '低于': '<', '小于等于': '<=', '不大于': '<=', '等于': '=', '不等于': '!=' };
 
     // 提取条件列和比较值
     let conditionCol = '';
@@ -649,7 +649,7 @@ export class RuleBasedSemanticParser implements SemanticTaskParser {
     let falseVal: string | number = '';
 
     // 模式1: 如果 [列] [运算符] [值]，则/就 [真值]，否则 [假值]
-    const ifMatch = lower.match(/如果\s*(.+?)\s*(大于|小于|等于|大于等于|小于等于|不等于|超过|低于|不小于|不大于)\s*(.+?)(?:，|,)\s*(?:则|就)?\s*(.+?)(?:，|,)\s*(?:否则|不然)\s*(.+)/);
+    const ifMatch = lower.match(/如果\s*(.+?)\s*(大于|小于|等于|大于等于|小于等于|不等于|超过|高于|低于|不小于|不大于)\s*(.+?)(?:，|,)\s*(?:则|就)?\s*(.+?)(?:，|,)\s*(?:否则|不然)\s*(.+)/);
     if (ifMatch) {
       conditionCol = ifMatch[1].trim();
       conditionOp = opMap[ifMatch[2]] || '>';
@@ -661,7 +661,7 @@ export class RuleBasedSemanticParser implements SemanticTaskParser {
     // 模式2: [列] [运算符] [值] 的 [真值]，否则 [假值]
     // 如：成本价小于200的显示已废除，否则显示未废除
     if (!conditionCol) {
-      const elseMatch = lower.match(/(.+?)\s*(大于|小于|等于|大于等于|小于等于|不等于|超过|低于|不小于|不大于)\s*(.+?)\s*的\s*(?:显示为|显示)?\s*(.+?)(?:，|,)\s*(?:否则|不然)\s*(?:显示为|显示)?\s*(.+)/);
+      const elseMatch = lower.match(/(.+?)\s*(大于|小于|等于|大于等于|小于等于|不等于|超过|高于|低于|不小于|不大于)\s*(.+?)\s*的\s*(?:显示为|显示)?\s*(.+?)(?:，|,)\s*(?:否则|不然)\s*(?:显示为|显示)?\s*(.+)/);
       if (elseMatch) {
         conditionCol = elseMatch[1].trim();
         conditionOp = opMap[elseMatch[2]] || '>';
@@ -874,11 +874,14 @@ export class RuleBasedSemanticParser implements SemanticTaskParser {
     // 比较条件：大于15000、小于5000 等（用于"将基本工资大于15000的改成20000"）
     if (column) {
       const compPatterns: { regex: RegExp; op: string }[] = [
-        { regex: /大于等于s*([d.]+)/, op: 'gte' },
-        { regex: /大于s*([d.]+)/, op: 'gte' },
-        { regex: /小于等于s*([d.]+)/, op: 'lte' },
-        { regex: /小于s*([d.]+)/, op: 'lte' },
-        { regex: /等于s*([d.]+)/, op: 'eq' },
+        { regex: /大于等于\s*([\d.]+)/, op: 'gte' },
+        { regex: /大于\s*([\d.]+)/, op: 'gte' },
+        { regex: /高于\s*([\d.]+)/, op: 'gt' },
+        { regex: /超过\s*([\d.]+)/, op: 'gt' },
+        { regex: /小于等于\s*([\d.]+)/, op: 'lte' },
+        { regex: /小于\s*([\d.]+)/, op: 'lte' },
+        { regex: /低于\s*([\d.]+)/, op: 'lt' },
+        { regex: /等于\s*([\d.]+)/, op: 'eq' },
       ];
       for (const p of compPatterns) {
         const m = lower.match(p.regex);
@@ -1884,7 +1887,7 @@ export class RuleBasedSemanticParser implements SemanticTaskParser {
    * 提取范围
    */
   private extractScope(lower: string): 'all' | 'selected' | 'filtered' {
-    if (lower.includes('筛选') || lower.includes('过滤') || lower.includes('只看') || lower.includes('找出')) return 'filtered';
+    if (lower.includes('筛选') || lower.includes('过滤') || lower.includes('找出')) return 'filtered';
     if (lower.includes('选中') || lower.includes('勾选')) return 'selected';
     return 'all';
   }
@@ -1911,7 +1914,7 @@ export class RuleBasedSemanticParser implements SemanticTaskParser {
       // "分别" 系列
       { pattern: /分别/, extract: false }, // 仅标记分组意图，不直接提取列名
       // "分X" 系列
-      { pattern: /分(?:组|类|部门|地区|城市|产品)/, extract: false },
+      { pattern: /分(?:组|类|部门|地区|城市)/, extract: false },
     ];
 
     let isGrouped = false;

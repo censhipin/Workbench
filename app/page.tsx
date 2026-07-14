@@ -49,6 +49,7 @@ import EmptyState from '@/components/common/EmptyState';
 import DebugTraceModal from '@/components/debug/DebugTraceModal';
 import SettingsDialog from '@/components/common/SettingsDialog';
 import HelpDialog from '@/components/common/HelpDialog';
+import UpdateNotifier from '@/components/common/UpdateNotifier';
 import { getDebugEnabled } from '@/lib/settings';
 
 export default function Home() {
@@ -718,6 +719,7 @@ export default function Home() {
           }}
         />
       )}
+      <UpdateNotifier />
     </div>
   );
 }

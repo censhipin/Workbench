@@ -3,15 +3,27 @@
 import { useState, useEffect, useRef } from 'react';
 import { getApiKey, setApiKey } from '@/lib/api-key';
 import {
-  getApiUrl, setApiUrl,
-  getModel, setModel,
   getDebugEnabled, setDebugEnabled,
   getTheme, setTheme,
   clearAllData, THEMES,
-  DEFAULT_API_URL, DEFAULT_MODEL,
 } from '@/lib/settings';
 
 export type SettingsMode = 'settings' | 'execute' | 'audit';
+
+type TabId = 'api' | 'appearance' | 'about' | 'data';
+
+interface TabItem {
+  id: TabId;
+  label: string;
+  icon: string;
+}
+
+const TABS: TabItem[] = [
+  { id: 'api', label: 'API 配置', icon: '⚙️' },
+  { id: 'appearance', label: '界面设置', icon: '🎨' },
+  { id: 'about', label: '关于', icon: 'ℹ️' },
+  { id: 'data', label: '数据管理', icon: '🗑️' },
+];
 
 interface SettingsDialogProps {
   onClose: () => void;
@@ -29,18 +41,14 @@ const MODE_CONFIG: Record<SettingsMode, {
   settings: {
     title: '设置',
     icon: '⚙️',
-    description: '配置 DeepSeek API 及个性化设置',
-    features: [
-      '用自然语言指令处理表格数据',
-      '智能筛选、排序、统计、公式计算',
-      '多表匹配与数据质量检测',
-    ],
+    description: '配置 API 及个性化设置',
+    features: [],
     buttonText: '保存',
   },
   execute: {
     title: '执行任务需要 API Key',
     icon: '🤖',
-    description: '执行任务需要通过 DeepSeek AI 理解你的自然语言指令，请先配置 API Key。',
+    description: '执行任务需要通过 AI 理解你的自然语言指令，请先配置 API Key。',
     features: [
       '输入"筛选部门是技术部工资大于10000的数据"',
       '输入"按基本工资降序排序"',
@@ -51,7 +59,7 @@ const MODE_CONFIG: Record<SettingsMode, {
   audit: {
     title: '数据检测需要 API Key',
     icon: '🔍',
-    description: '数据检测需要通过 DeepSeek AI 分析数据质量、识别异常值和重复数据。',
+    description: '数据检测需要通过 AI 分析数据质量、识别异常值和重复数据。',
     features: [
       '自动检测空白值和异常数据',
       '识别重复记录',
@@ -62,10 +70,9 @@ const MODE_CONFIG: Record<SettingsMode, {
 };
 
 export default function SettingsDialog({ onClose, mode = 'settings', onSaved }: SettingsDialogProps) {
+  const [activeTab, setActiveTab] = useState<TabId>('api');
   const [keyValue, setKeyValue] = useState('');
   const [showKey, setShowKey] = useState(false);
-  const [apiUrlValue, setApiUrlValue] = useState('');
-  const [modelValue, setModelValue] = useState('');
   const [debugEnabled, setDebugEnabledLocal] = useState(false);
   const [themeId, setThemeIdLocal] = useState<string>('default');
   const [saved, setSaved] = useState(false);
@@ -74,15 +81,14 @@ export default function SettingsDialog({ onClose, mode = 'settings', onSaved }: 
   const inputRef = useRef<HTMLInputElement>(null);
 
   const config = MODE_CONFIG[mode];
+  const showFeatures = mode !== 'settings' && activeTab === 'api';
 
   useEffect(() => {
     setKeyValue(getApiKey());
-    setApiUrlValue(getApiUrl());
-    setModelValue(getModel());
     setDebugEnabledLocal(getDebugEnabled());
     setThemeIdLocal(getTheme());
-    setTimeout(() => inputRef.current?.focus(), 100);
-  }, []);
+    setTimeout(() => activeTab === 'api' && inputRef.current?.focus(), 100);
+  }, [activeTab]);
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
@@ -96,17 +102,17 @@ export default function SettingsDialog({ onClose, mode = 'settings', onSaved }: 
     const trimmed = keyValue.trim();
     if (!trimmed) {
       setError('请输入 API Key');
+      setActiveTab('api');
       return;
     }
     if (!trimmed.startsWith('sk-')) {
       setError('API Key 格式不正确，应以 sk- 开头');
+      setActiveTab('api');
       return;
     }
     setError('');
 
     setApiKey(trimmed);
-    setApiUrl(apiUrlValue.trim());
-    setModel(modelValue.trim());
     setDebugEnabled(debugEnabled);
     setTheme(themeId as 'default' | 'warm' | 'sage');
 
@@ -120,135 +126,77 @@ export default function SettingsDialog({ onClose, mode = 'settings', onSaved }: 
   const handleClearData = () => {
     clearAllData();
     setShowClearConfirm(false);
-    // Force reload to reset all state
     window.location.reload();
   };
 
-  return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl border border-zinc-200 w-[440px] max-w-[92vw] overflow-hidden">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 pt-6 pb-5 border-b border-zinc-100">
-          <div className="flex items-start gap-4">
-            <div className="w-10 h-10 rounded-xl bg-white shadow-sm border border-zinc-200 flex items-center justify-center text-lg shrink-0 mt-0.5">
-              {config.icon}
-            </div>
-            <div className="min-w-0">
-              <h3 className="text-base font-semibold text-zinc-800">{config.title}</h3>
-              <p className="text-sm text-zinc-500 mt-1 leading-relaxed">{config.description}</p>
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'api':
+        return (
+          <div className="space-y-4">
+            {showFeatures && (
+              <div className="bg-zinc-50 rounded-xl p-4 border border-zinc-100">
+                <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2.5">支持的功能</h4>
+                <ul className="space-y-1.5">
+                  {config.features.map((f, i) => (
+                    <li key={i} className="flex items-center gap-2.5 text-sm text-zinc-600">
+                      <svg className="shrink-0" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 mb-1.5">API Key</label>
+              <div className="relative">
+                <input
+                  ref={inputRef}
+                  type={showKey ? 'text' : 'password'}
+                  value={keyValue}
+                  onChange={(e) => { setKeyValue(e.target.value); setError(''); }}
+                  placeholder="sk-..."
+                  className="w-full text-sm px-3.5 py-2.5 pr-10 rounded-xl border border-zinc-300 bg-white text-zinc-800 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-colors"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowKey(!showKey)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 transition-colors p-0.5"
+                  tabIndex={-1}
+                >
+                  {showKey ? (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94" />
+                      <path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19" />
+                      <line x1="1" y1="1" x2="23" y2="23" />
+                    </svg>
+                  ) : (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+              {error && (
+                <p className="text-xs text-red-500 mt-1.5 flex items-center gap-1">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+                  </svg>
+                  {error}
+                </p>
+              )}
+              <p className="text-[11px] text-zinc-400 mt-1.5">用于 AI 处理自然语言指令的 API 密钥</p>
             </div>
           </div>
-        </div>
+        );
 
-        {/* Body — scrollable sections */}
-        <div className="px-6 py-5 space-y-5 max-h-[60vh] overflow-y-auto">
-          {/* Features list (only for execute/audit modes) */}
-          {mode !== 'settings' && (
-            <div className="bg-zinc-50 rounded-xl p-4 border border-zinc-100">
-              <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2.5">支持的功能</h4>
-              <ul className="space-y-1.5">
-                {config.features.map((f, i) => (
-                  <li key={i} className="flex items-center gap-2.5 text-sm text-zinc-600">
-                    <svg className="shrink-0" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                    {f}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* ── Section: API 配置 ── */}
-          <div>
-            <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">API 配置</h4>
-            <div className="space-y-3">
-              {/* API Key */}
-              <div>
-                <label className="block text-sm font-medium text-zinc-700 mb-1.5">
-                  DeepSeek API Key
-                </label>
-                <div className="relative">
-                  <input
-                    ref={inputRef}
-                    type={showKey ? 'text' : 'password'}
-                    value={keyValue}
-                    onChange={(e) => { setKeyValue(e.target.value); setError(''); }}
-                    placeholder="sk-..."
-                    className="w-full text-sm px-3.5 py-2.5 pr-10 rounded-xl border border-zinc-300 bg-white text-zinc-800 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-colors"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowKey(!showKey)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 transition-colors p-0.5"
-                    tabIndex={-1}
-                  >
-                    {showKey ? (
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94" />
-                        <path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19" />
-                        <line x1="1" y1="1" x2="23" y2="23" />
-                      </svg>
-                    ) : (
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                        <circle cx="12" cy="12" r="3" />
-                      </svg>
-                    )}
-                  </button>
-                </div>
-                {error && (
-                  <p className="text-xs text-red-500 mt-1.5 flex items-center gap-1">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
-                    </svg>
-                    {error}
-                  </p>
-                )}
-              </div>
-
-              {/* API 地址 */}
-              <div>
-                <label className="block text-sm font-medium text-zinc-700 mb-1.5">
-                  API 地址
-                </label>
-                <input
-                  type="text"
-                  value={apiUrlValue}
-                  onChange={(e) => setApiUrlValue(e.target.value)}
-                  placeholder={DEFAULT_API_URL}
-                  className="w-full text-sm px-3.5 py-2.5 rounded-xl border border-zinc-300 bg-white text-zinc-800 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-colors"
-                />
-                <p className="text-[11px] text-zinc-400 mt-1">默认为 DeepSeek 官方地址，自建代理时可修改</p>
-              </div>
-
-              {/* 模型名称 */}
-              <div>
-                <label className="block text-sm font-medium text-zinc-700 mb-1.5">
-                  模型名称
-                </label>
-                <input
-                  type="text"
-                  value={modelValue}
-                  onChange={(e) => setModelValue(e.target.value)}
-                  placeholder={DEFAULT_MODEL}
-                  className="w-full text-sm px-3.5 py-2.5 rounded-xl border border-zinc-300 bg-white text-zinc-800 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-colors"
-                />
-                <p className="text-[11px] text-zinc-400 mt-1">默认为 deepseek-chat，更换模型时修改</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Divider */}
-          <div className="border-t border-zinc-100" />
-
-          {/* ── Section: 界面设置 ── */}
-          <div>
-            <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">界面设置</h4>
-
-            {/* 主题选择 */}
-            <div className="mb-4">
+      case 'appearance':
+        return (
+          <div className="space-y-6">
+            <div>
               <p className="text-sm font-medium text-zinc-700 mb-2.5">软件主题</p>
               <div className="grid grid-cols-3 gap-2">
                 {THEMES.map(t => {
@@ -290,8 +238,9 @@ export default function SettingsDialog({ onClose, mode = 'settings', onSaved }: 
               </div>
             </div>
 
-            {/* Debug 开关 */}
-            <div className="flex items-center justify-between py-2">
+            <div className="border-t border-zinc-100" />
+
+            <div className="flex items-center justify-between py-1">
               <div>
                 <p className="text-sm font-medium text-zinc-700">Debug 模式</p>
                 <p className="text-xs text-zinc-400 mt-0.5">开启后在顶栏显示调试按钮</p>
@@ -305,35 +254,51 @@ export default function SettingsDialog({ onClose, mode = 'settings', onSaved }: 
               </button>
             </div>
           </div>
+        );
 
-          {/* Divider */}
-          <div className="border-t border-zinc-100" />
-
-          {/* ── Section: 关于 ── */}
-          <div>
-            <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">关于</h4>
-            <div className="flex items-center justify-between py-2">
-              <div>
-                <p className="text-sm font-medium text-zinc-700">DataPilot</p>
-                <p className="text-xs text-zinc-400 mt-0.5">版本 0.3.1</p>
+      case 'about':
+        return (
+          <div className="space-y-4">
+            <div className="flex items-center gap-4 py-3">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xl font-bold shadow-sm">
+                DP
               </div>
-              <a
-                href="https://github.com/censhipin/Workbench/releases"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm px-3.5 py-2 rounded-xl border border-zinc-200 text-zinc-600 hover:bg-zinc-50 hover:shadow-sm transition-all"
-              >
-                检查更新
-              </a>
+              <div>
+                <p className="text-base font-semibold text-zinc-800">DataPilot</p>
+                <p className="text-sm text-zinc-400 mt-0.5">版本 0.3.2</p>
+              </div>
             </div>
+            <p className="text-sm text-zinc-500 leading-relaxed">
+              通过自然语言指令处理表格数据，支持智能筛选、排序、统计、公式计算，以及多表匹配与数据质量检测。
+            </p>
+            <div className="border-t border-zinc-100" />
+            <button
+              type="button"
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  (window as any).__checkUpdate?.();
+                }
+              }}
+              className={`inline-flex items-center gap-2 text-sm px-4 py-2 rounded-xl border transition-all ${
+                typeof window !== 'undefined' && window.electronAPI?.isElectron
+                  ? 'border-zinc-200 text-zinc-600 hover:bg-zinc-50 hover:shadow-sm'
+                  : 'border-zinc-100 text-zinc-300 cursor-not-allowed'
+              }`}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
+              </svg>
+              {typeof window !== 'undefined' && window.electronAPI?.isElectron ? '检查更新' : '桌面客户端可用'}
+            </button>
           </div>
+        );
 
-          {/* Divider */}
-          <div className="border-t border-zinc-100" />
-
-          {/* ── Section: 数据管理 ── */}
-          <div>
-            <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">数据管理</h4>
+      case 'data':
+        return (
+          <div className="space-y-4">
+            <p className="text-sm text-zinc-500 leading-relaxed">
+              清除所有本地数据，包括文件缓存、操作历史、API 配置和设置。此操作不可恢复。
+            </p>
             {!showClearConfirm ? (
               <button
                 type="button"
@@ -365,24 +330,73 @@ export default function SettingsDialog({ onClose, mode = 'settings', onSaved }: 
                 </div>
               </div>
             )}
+            <div className="border-t border-zinc-100 pt-4">
+              <p className="text-[11px] text-zinc-400 leading-relaxed">
+                所有数据均在本地处理，不上传至外部服务器。
+              </p>
+            </div>
           </div>
+        );
+    }
+  };
 
-          <p className="text-[11px] text-zinc-300 text-center">
-            所有数据均在本地处理，不上传至外部服务器
-          </p>
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl border border-zinc-200 w-[640px] max-w-[94vw] overflow-hidden">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 pt-6 pb-5 border-b border-zinc-100">
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 rounded-xl bg-white shadow-sm border border-zinc-200 flex items-center justify-center text-lg shrink-0 mt-0.5">
+              {config.icon}
+            </div>
+            <div className="min-w-0">
+              <h3 className="text-base font-semibold text-zinc-800">{config.title}</h3>
+              <p className="text-sm text-zinc-500 mt-1 leading-relaxed">{config.description}</p>
+            </div>
+          </div>
+        </div>
 
-          {saved && (
-            <p className="text-xs text-emerald-600 flex items-center justify-center gap-1 transition-all">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M20 6L9 17l-5-5" />
-              </svg>
-              已保存
-            </p>
-          )}
+        {/* Body: Nav + Content */}
+        <div className="flex min-h-[320px] max-h-[55vh]">
+          {/* Left Nav */}
+          <nav className="w-[156px] shrink-0 border-r border-zinc-100 p-3 space-y-1">
+            {TABS.map(tab => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => { setActiveTab(tab.id); setShowClearConfirm(false); }}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition-all ${
+                    isActive
+                      ? 'bg-blue-50 text-blue-700 font-medium shadow-sm'
+                      : 'text-zinc-500 hover:text-zinc-700 hover:bg-zinc-50'
+                  }`}
+                >
+                  <span className="text-base">{tab.icon}</span>
+                  {tab.label}
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* Right Content */}
+          <div className="flex-1 px-6 py-5 overflow-y-auto">
+            {renderContent()}
+          </div>
         </div>
 
         {/* Footer */}
         <div className="px-6 py-4 border-t border-zinc-100 flex items-center justify-end gap-2.5 bg-zinc-50/50">
+          {saved && (
+            <span className="text-xs text-emerald-600 flex items-center gap-1 mr-auto">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 6L9 17l-5-5" />
+              </svg>
+              已保存
+            </span>
+          )}
           <button
             onClick={onClose}
             className="text-sm px-4 py-2 rounded-xl border border-zinc-200 text-zinc-600 hover:bg-white hover:shadow-sm transition-all"

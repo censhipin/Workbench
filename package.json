@@ -1,7 +1,8 @@
 {
   "name": "workbench",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
+  "repository": "censhipin/Workbench",
   "main": "electron-out/main.js",
   "scripts": {
     "dev": "next dev",
