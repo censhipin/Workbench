@@ -15,14 +15,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'API key not configured' }, { status: 500 });
     }
 
-    const response = await fetch(DEEPSEEK_API_URL, {
+    // Custom API URL and model from headers (set by client-side settings)
+    const apiUrl = request.headers.get('x-deepseek-api-url') || DEEPSEEK_API_URL;
+    const model = request.headers.get('x-deepseek-model') || 'deepseek-chat';
+
+    const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: 'deepseek-chat',
+        model,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userMessage },

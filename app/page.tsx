@@ -49,6 +49,7 @@ import EmptyState from '@/components/common/EmptyState';
 import DebugTraceModal from '@/components/debug/DebugTraceModal';
 import SettingsDialog from '@/components/common/SettingsDialog';
 import HelpDialog from '@/components/common/HelpDialog';
+import { getDebugEnabled } from '@/lib/settings';
 
 export default function Home() {
   // ── 文件状态 ────────────────────────────────────────────
@@ -93,6 +94,7 @@ export default function Home() {
     dismissError,
   } = useDialogController();
   const [showHelp, setShowHelp] = useState(false);
+  const [debugEnabled, setDebugEnabled] = useState(getDebugEnabled);
 
   // ── 版本管理 ────────────────────────────────────────────
   const {
@@ -417,6 +419,7 @@ export default function Home() {
         fileName={selectedFile && activeSheet ? `${selectedFile.name} — ${activeSheet}` : selectedFile?.name}
         versionLabel={currentVersion ? `版本 v${currentVersion.label}` : undefined}
         debugMode={debugMode}
+        debugEnabled={debugEnabled}
         onToggleDebug={() => setDebugMode(prev => !prev)}
         onOpenSettings={() => { setApiKeyMode('settings'); setShowApiKeyDialog(true); }}
         onOpenHelp={() => setShowHelp(true)}
@@ -708,6 +711,7 @@ export default function Home() {
           mode={apiKeyMode}
           onClose={() => setShowApiKeyDialog(false)}
           onSaved={() => {
+            setDebugEnabled(getDebugEnabled());
             if (apiKeyMode === 'execute') {
               handleSubmit();
             }

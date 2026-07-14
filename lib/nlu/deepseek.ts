@@ -12,6 +12,7 @@ import { ColumnDef } from '../types';
 import { TaskPlan } from './taskplan-types';
 import { getSampleRows } from './sampler';
 import { getApiKey } from '@/lib/api-key';
+import { getApiUrlOrDefault, getModelOrDefault } from '@/lib/settings';
 
 /** 构建发送给 DeepSeek 的 system prompt */
 function buildSystemPrompt(
@@ -210,6 +211,9 @@ async function callDeepSeek(
   if (apiKey) {
     headers['x-deepseek-api-key'] = apiKey;
   }
+  // Pass custom API URL and model from settings
+  headers['x-deepseek-api-url'] = getApiUrlOrDefault();
+  headers['x-deepseek-model'] = getModelOrDefault();
 
   const response = await fetch(`${origin}/api/deepseek`, {
     method: 'POST',
