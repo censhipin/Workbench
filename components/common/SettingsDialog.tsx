@@ -6,7 +6,8 @@ import {
   getApiUrl, setApiUrl,
   getModel, setModel,
   getDebugEnabled, setDebugEnabled,
-  clearAllData,
+  getTheme, setTheme,
+  clearAllData, THEMES,
   DEFAULT_API_URL, DEFAULT_MODEL,
 } from '@/lib/settings';
 
@@ -66,6 +67,7 @@ export default function SettingsDialog({ onClose, mode = 'settings', onSaved }: 
   const [apiUrlValue, setApiUrlValue] = useState('');
   const [modelValue, setModelValue] = useState('');
   const [debugEnabled, setDebugEnabledLocal] = useState(false);
+  const [themeId, setThemeIdLocal] = useState<string>('default');
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -78,6 +80,7 @@ export default function SettingsDialog({ onClose, mode = 'settings', onSaved }: 
     setApiUrlValue(getApiUrl());
     setModelValue(getModel());
     setDebugEnabledLocal(getDebugEnabled());
+    setThemeIdLocal(getTheme());
     setTimeout(() => inputRef.current?.focus(), 100);
   }, []);
 
@@ -105,6 +108,7 @@ export default function SettingsDialog({ onClose, mode = 'settings', onSaved }: 
     setApiUrl(apiUrlValue.trim());
     setModel(modelValue.trim());
     setDebugEnabled(debugEnabled);
+    setTheme(themeId as 'default' | 'warm' | 'sage');
 
     setSaved(true);
     setTimeout(() => {
@@ -242,6 +246,51 @@ export default function SettingsDialog({ onClose, mode = 'settings', onSaved }: 
           {/* ── Section: 界面设置 ── */}
           <div>
             <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">界面设置</h4>
+
+            {/* 主题选择 */}
+            <div className="mb-4">
+              <p className="text-sm font-medium text-zinc-700 mb-2.5">软件主题</p>
+              <div className="grid grid-cols-3 gap-2">
+                {THEMES.map(t => {
+                  const isActive = themeId === t.id;
+                  const previewColors = t.id === 'default'
+                    ? { bg: '#f8f9fa', primary: '#4f6ef7', text: '#1a1a2e' }
+                    : t.id === 'warm'
+                    ? { bg: '#faf7f2', primary: '#b8784a', text: '#3a3228' }
+                    : { bg: '#f4f6f3', primary: '#6d8f6d', text: '#2a3028' };
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => {
+                        setThemeIdLocal(t.id);
+                        document.documentElement.setAttribute('data-theme', t.id);
+                      }}
+                      className="rounded-xl border-2 p-3 transition-all text-left"
+                      style={{
+                        borderColor: isActive ? previewColors.primary : 'var(--border-color)',
+                        background: previewColors.bg,
+                      }}
+                    >
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <div className="w-5 h-5 rounded-md flex items-center justify-center" style={{ background: previewColors.primary }}>
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round"><path d="M20 6L9 17l-5-5" /></svg>
+                        </div>
+                        <div className="flex gap-0.5">
+                          {[previewColors.bg, previewColors.bg, previewColors.bg].map((c, i) => (
+                            <div key={i} className="w-3 h-2 rounded-sm" style={{ background: i === 0 ? previewColors.primary : i === 1 ? '#d1d5db' : '#e5e7eb' }} />
+                          ))}
+                        </div>
+                      </div>
+                      <p className="text-xs font-medium" style={{ color: previewColors.text }}>{t.name}</p>
+                      <p className="text-[10px] mt-0.5" style={{ color: t.id === 'default' ? '#6b7280' : t.id === 'warm' ? '#8a7e72' : '#6d7a6a' }}>{t.desc}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Debug 开关 */}
             <div className="flex items-center justify-between py-2">
               <div>
                 <p className="text-sm font-medium text-zinc-700">Debug 模式</p>

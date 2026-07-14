@@ -7,10 +7,37 @@ const KEYS = {
   apiUrl: 'workbench_api_url',
   model: 'workbench_model',
   debugEnabled: 'workbench_debug_enabled',
+  theme: 'workbench_theme',
 } as const;
 
 export const DEFAULT_API_URL = 'https://api.deepseek.com/chat/completions';
 export const DEFAULT_MODEL = 'deepseek-chat';
+
+// ── Theme ──
+
+export type ThemeId = 'default' | 'warm' | 'sage';
+
+export function getTheme(): ThemeId {
+  if (typeof window === 'undefined') return 'default';
+  try {
+    const v = localStorage.getItem(KEYS.theme);
+    if (v === 'warm' || v === 'sage') return v;
+    return 'default';
+  } catch { return 'default'; }
+}
+
+export function setTheme(theme: ThemeId): void {
+  try {
+    localStorage.setItem(KEYS.theme, theme);
+    document.documentElement.setAttribute('data-theme', theme);
+  } catch { /* SSR */ }
+}
+
+export const THEMES: { id: ThemeId; name: string; desc: string }[] = [
+  { id: 'default', name: '经典蓝', desc: '明亮清晰，默认配色' },
+  { id: 'warm', name: '暖阳米白', desc: '暖色调，低对比不刺眼' },
+  { id: 'sage', name: '森系灰绿', desc: '低饱和绿色，舒缓护眼' },
+];
 
 // ── API Key ──
 
@@ -76,9 +103,7 @@ export function setDebugEnabled(enabled: boolean): void {
 
 export function clearAllData(): void {
   try {
-    // Clear all workbench localStorage keys
     Object.values(KEYS).forEach(k => localStorage.removeItem(k));
-    // Clear IndexedDB databases
     if (typeof indexedDB !== 'undefined') {
       indexedDB.databases?.().then(dbs => {
         dbs.forEach(db => { if (db.name) indexedDB.deleteDatabase(db.name); });
@@ -87,7 +112,7 @@ export function clearAllData(): void {
   } catch { /* noop */ }
 }
 
-// ── Check for hardcoded URL fallback ──
+// ── Helpers ──
 
 export function getApiUrlOrDefault(): string {
   return getApiUrl() || DEFAULT_API_URL;

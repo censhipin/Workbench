@@ -15,11 +15,11 @@ interface MainPanelProps {
 
 export default function MainPanel({ children, bottomBar, activeTab, onTabChange, hasResult, statusBar }: MainPanelProps) {
   return (
-    <main className="flex-1 flex flex-col min-w-0 bg-white h-full overflow-hidden">
+    <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden" style={{ background: 'var(--bg-card)' }}>
       <DataTabs activeTab={activeTab} onTabChange={onTabChange} hasResult={hasResult} />
       {statusBar && (
-        <div className="flex items-center gap-3 px-4 py-2 bg-[#f8f9fa] border-b border-[#e9ecef] shrink-0">
-          <span className="text-[11px] text-[#6b7280]">{statusBar}</span>
+        <div className="flex items-center gap-3 px-4 py-2 shrink-0" style={{ background: 'var(--bg-sidebar)', borderBottom: '1px solid var(--border-color)' }}>
+          <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>{statusBar}</span>
         </div>
       )}
       <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
@@ -27,7 +27,7 @@ export default function MainPanel({ children, bottomBar, activeTab, onTabChange,
           {children}
         </div>
         {bottomBar && (
-          <div className="shrink-0 border-t border-[#e9ecef]">
+          <div className="shrink-0" style={{ borderTop: '1px solid var(--border-color)' }}>
             {bottomBar}
           </div>
         )}

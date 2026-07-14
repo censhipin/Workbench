@@ -16,24 +16,24 @@ interface TopBarProps {
 export default function TopBar({ fileName, versionLabel, debugMode, debugEnabled, onToggleDebug, onOpenSettings, onOpenHelp }: TopBarProps) {
 
   return (
-    <header className="h-14 shrink-0 border-b border-[#e9ecef] bg-white flex items-center justify-between px-6">
+    <header className="h-14 shrink-0 flex items-center justify-between px-6" style={{ borderBottom: '1px solid var(--border-color)', background: 'var(--bg-card)' }}>
       {/* Left: Logo + Product name */}
       <div className="flex items-center gap-4 min-w-0">
         <div className="flex items-center gap-2.5 shrink-0">
-          <div className="w-7 h-7 rounded-lg bg-[#4f6ef7] flex items-center justify-center">
+          <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--primary)' }}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
             </svg>
           </div>
-          <span className="text-sm font-semibold text-[#1a1a2e]">DataPilot</span>
+          <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>DataPilot</span>
         </div>
 
         {/* Center: filename + version */}
         {fileName && (
-          <div className="flex items-center gap-2 pl-4 border-l border-[#e9ecef]">
-            <span className="text-sm text-[#1a1a2e] font-medium">{fileName}</span>
+          <div className="flex items-center gap-2 pl-4" style={{ borderLeft: '1px solid var(--border-color)' }}>
+            <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{fileName}</span>
             {versionLabel && (
-              <span className="text-[11px] text-[#6b7280] bg-[#f3f4f6] px-2 py-0.5 rounded-md font-medium">{versionLabel}</span>
+              <span className="text-[11px] px-2 py-0.5 rounded-md font-medium" style={{ color: 'var(--text-secondary)', background: 'var(--hover-bg)' }}>{versionLabel}</span>
             )}
           </div>
         )}
@@ -45,8 +45,9 @@ export default function TopBar({ fileName, versionLabel, debugMode, debugEnabled
           <button
             onClick={onToggleDebug}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors ${
-              debugMode ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'text-[#6b7280] hover:bg-[#f3f4f6]'
+              debugMode ? 'border text-amber-700' : 'hover:bg-[#f3f4f6]'
             }`}
+            style={debugMode ? { background: '#fef3c7', borderColor: '#fde68a', color: '#b45309' } : { color: 'var(--text-secondary)' }}
             title="调试模式"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -56,11 +57,17 @@ export default function TopBar({ fileName, versionLabel, debugMode, debugEnabled
             Debug
           </button>
         )}
-        <button onClick={() => onOpenSettings?.()} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-[#6b7280] hover:bg-[#f3f4f6] transition-colors">
+        <button onClick={() => onOpenSettings?.()} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors" style={{ color: 'var(--text-secondary)' }}
+          onMouseEnter={e => (e.currentTarget.style.background = 'var(--hover-bg)')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+        >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
           设置
         </button>
-        <button onClick={() => onOpenHelp?.()} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-[#6b7280] hover:bg-[#f3f4f6] transition-colors">
+        <button onClick={() => onOpenHelp?.()} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors" style={{ color: 'var(--text-secondary)' }}
+          onMouseEnter={e => (e.currentTarget.style.background = 'var(--hover-bg)')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+        >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
           帮助
         </button>

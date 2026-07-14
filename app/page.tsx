@@ -413,7 +413,7 @@ export default function Home() {
 
   // ── 渲染 ────────────────────────────────────────────────
   return (
-    <div className="h-screen flex flex-col overflow-hidden bg-zinc-50">
+    <div className="h-screen flex flex-col overflow-hidden" style={{ background: 'var(--bg-page)' }}>
       {/* 顶部栏 */}
       <TopBar
         fileName={selectedFile && activeSheet ? `${selectedFile.name} — ${activeSheet}` : selectedFile?.name}

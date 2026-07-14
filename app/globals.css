@@ -1,23 +1,48 @@
 @import "tailwindcss";
 
-:root {
-  --bg-page: #ffffff;
+/* ── 软件主题色系统 ── */
+:root, [data-theme="default"] {
+  --bg-page: #f8f9fa;
   --bg-sidebar: #f8f9fa;
+  --bg-card: #ffffff;
   --border-color: #e9ecef;
   --primary: #4f6ef7;
   --primary-light: #eef1ff;
+  --primary-hover: #3b5ce5;
   --text-primary: #1a1a2e;
   --text-secondary: #6b7280;
   --text-tertiary: #9ca3af;
-  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
-  --shadow-md: 0 2px 8px rgba(0,0,0,0.06);
+  --hover-bg: #f3f4f6;
 }
 
-@theme inline {
-  --color-background: var(--bg-page);
-  --color-foreground: var(--text-primary);
-  --font-sans: 'Microsoft YaHei', 'PingFang SC', 'Noto Sans SC', system-ui, -apple-system, sans-serif;
-  --font-mono: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Source Code Pro', Consolas, monospace;
+/* 暖阳米白 — 低对比度，温暖柔和 */
+[data-theme="warm"] {
+  --bg-page: #faf7f2;
+  --bg-sidebar: #f4efe8;
+  --bg-card: #ffffff;
+  --border-color: #e6dfd6;
+  --primary: #b8784a;
+  --primary-light: #fdf2e8;
+  --primary-hover: #a0683a;
+  --text-primary: #3a3228;
+  --text-secondary: #8a7e72;
+  --text-tertiary: #b8aea2;
+  --hover-bg: #eee8e0;
+}
+
+/* 森系灰绿 — 低饱和，舒缓护眼 */
+[data-theme="sage"] {
+  --bg-page: #f4f6f3;
+  --bg-sidebar: #ecf0ea;
+  --bg-card: #ffffff;
+  --border-color: #dce3d9;
+  --primary: #6d8f6d;
+  --primary-light: #edf4ed;
+  --primary-hover: #5a7a5a;
+  --text-primary: #2a3028;
+  --text-secondary: #6d7a6a;
+  --text-tertiary: #9aaa96;
+  --hover-bg: #e8eee5;
 }
 
 body {
