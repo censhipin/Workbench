@@ -225,6 +225,10 @@ export class RuleBasedSemanticParser implements SemanticTaskParser {
     if (/如果|若|当/.test(lower) && /大于|小于|等于/.test(lower)) {
       return { operation: 'formula', confidence: 0.9 };
     }
+    // 没有"如果"但有"否则" + 比较操作符 → IF 公式
+    if (/否则|不然/.test(lower) && /大于|小于|等于|超过|低于/.test(lower)) {
+      return { operation: 'formula', confidence: 0.85 };
+    }
 
     // 以"新增/添加/增加/新/创建/生成"开头且含"列"字
     if (/^(?:新增|添加|增加|新|创建|生成).*列/.test(lower)) {
@@ -424,7 +428,7 @@ export class RuleBasedSemanticParser implements SemanticTaskParser {
   /** 提取 formula 的目标列名 */
   private extractFormulaTargetColumn(prompt: string, lower: string): string {
     // "新增一列金额" → "金额"
-    const addColMatch = lower.match(/(?:新增|添加|增加|创建|生成)\s*(?:一列|一个)?\s*(.+?)(?:列|，|,|$)/);
+    const addColMatch = lower.match(/(?:新增|添加|增加|创建|生成)\s*(?:一列|一个)?\s*(.+?)(?:列|，|,|＝|=|$)/);
     if (addColMatch) {
       const col = addColMatch[1].trim();
       if (col && col.length >= 1) return col;
@@ -632,8 +636,6 @@ export class RuleBasedSemanticParser implements SemanticTaskParser {
     trueValue: string | number;
     falseValue: string | number;
   } | null {
-    if (!/如果|若/.test(lower)) return null;
-
     const colTitles = availableColumns.map(c => c.title).filter(Boolean);
 
     // 匹配模式：如果 X 大于/小于/等于 Y，则/就 A，否则/不然 B
@@ -646,7 +648,7 @@ export class RuleBasedSemanticParser implements SemanticTaskParser {
     let trueVal: string | number = '';
     let falseVal: string | number = '';
 
-    // 模式: 如果 [列] [运算符] [值]，则/就 [真值]，否则 [假值]
+    // 模式1: 如果 [列] [运算符] [值]，则/就 [真值]，否则 [假值]
     const ifMatch = lower.match(/如果\s*(.+?)\s*(大于|小于|等于|大于等于|小于等于|不等于|超过|低于|不小于|不大于)\s*(.+?)(?:，|,)\s*(?:则|就)?\s*(.+?)(?:，|,)\s*(?:否则|不然)\s*(.+)/);
     if (ifMatch) {
       conditionCol = ifMatch[1].trim();
@@ -654,6 +656,19 @@ export class RuleBasedSemanticParser implements SemanticTaskParser {
       conditionVal = ifMatch[3].trim();
       trueVal = ifMatch[4].trim();
       falseVal = ifMatch[5].trim();
+    }
+
+    // 模式2: [列] [运算符] [值] 的 [真值]，否则 [假值]
+    // 如：成本价小于200的显示已废除，否则显示未废除
+    if (!conditionCol) {
+      const elseMatch = lower.match(/(.+?)\s*(大于|小于|等于|大于等于|小于等于|不等于|超过|低于|不小于|不大于)\s*(.+?)\s*的\s*(?:显示为|显示)?\s*(.+?)(?:，|,)\s*(?:否则|不然)\s*(?:显示为|显示)?\s*(.+)/);
+      if (elseMatch) {
+        conditionCol = elseMatch[1].trim();
+        conditionOp = opMap[elseMatch[2]] || '>';
+        conditionVal = elseMatch[3].trim();
+        trueVal = elseMatch[4].trim();
+        falseVal = elseMatch[5].trim();
+      }
     }
 
     if (!conditionCol) return null;

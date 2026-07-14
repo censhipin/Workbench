@@ -171,14 +171,17 @@ function buildStructuredAST(
   // IF 特殊处理
   if (expressionType === 'IF') {
     const condCol: ASTNode = { type: 'columnRef', name: plan.conditionColumn || sourceColumns[0] || '' };
+    const cmpOp = plan.conditionOperator || '=';
     const cmpValue: ASTNode = { type: 'literal', value: plan.conditionValue ?? '' };
+    // 构建比较条件：condCol <op> cmpValue
+    const condition: ASTNode = { type: 'binaryOp', operator: cmpOp, left: condCol, right: cmpValue };
     const trueVal: ASTNode = plan.trueValue !== undefined
       ? { type: 'literal', value: plan.trueValue }
       : { type: 'columnRef', name: sourceColumns[0] || '' };
     const falseVal: ASTNode = plan.falseValue !== undefined
       ? { type: 'literal', value: plan.falseValue }
       : { type: 'columnRef', name: sourceColumns[sourceColumns.length > 1 ? 1 : 0] || '' };
-    return { type: 'functionCall', name: 'IF', args: [condCol, cmpValue, trueVal, falseVal] };
+    return { type: 'functionCall', name: 'IF', args: [condition, trueVal, falseVal] };
   }
 
   // 数学函数
