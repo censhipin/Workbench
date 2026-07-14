@@ -266,7 +266,7 @@ export default function SettingsDialog({ onClose, mode = 'settings', onSaved }: 
             <div className="flex items-center justify-between py-2">
               <div>
                 <p className="text-sm font-medium text-zinc-700">DataPilot</p>
-                <p className="text-xs text-zinc-400 mt-0.5">版本 {process.env.npm_package_version || '0.3.1'}</p>
+                <p className="text-xs text-zinc-400 mt-0.5">版本 0.3.1</p>
               </div>
               <a
                 href="https://github.com/censhipin/Workbench/releases"
