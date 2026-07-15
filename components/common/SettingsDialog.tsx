@@ -265,7 +265,7 @@ export default function SettingsDialog({ onClose, mode = 'settings', onSaved }: 
               </div>
               <div>
                 <p className="text-base font-semibold text-zinc-800">DataPilot</p>
-                <p className="text-sm text-zinc-400 mt-0.5">版本 0.3.2</p>
+                <p className="text-sm text-zinc-400 mt-0.5">版本 0.3.3</p>
               </div>
             </div>
             <p className="text-sm text-zinc-500 leading-relaxed">
