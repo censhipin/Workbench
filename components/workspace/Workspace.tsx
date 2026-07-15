@@ -25,7 +25,6 @@ export default function Workspace({
   onAddToTask,
 }: WorkspaceProps) {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-  const [expandedFileId, setExpandedFileId] = useState<string | null>(null);
 
   return (
     <div className="flex flex-col h-full">
@@ -42,7 +41,6 @@ export default function Workspace({
       <div className="flex-1 min-h-0 overflow-auto px-3 space-y-1.5">
         {files.map((file) => {
           const isSelected = selectedFileId === file.id;
-          const isExpanded = expandedFileId === file.id;
           const hasMultiSheets = file.sheets.length > 1;
           const isInTask = taskFileIds.includes(file.id);
           return (
@@ -56,10 +54,7 @@ export default function Workspace({
               >
                 <div
                   className="flex items-center gap-3 flex-1 min-w-0"
-                  onClick={() => {
-                    onSelectFile(file.id);
-                    if (hasMultiSheets) setExpandedFileId(isExpanded ? null : file.id);
-                  }}
+                  onClick={() => onSelectFile(file.id)}
                 >
                   <span className="text-lg shrink-0">{file.icon}</span>
                   <div className="flex-1 min-w-0">
@@ -99,26 +94,7 @@ export default function Workspace({
                 </div>
               </div>
 
-              {isExpanded && hasMultiSheets && (
-                <div className="pl-9 space-y-0.5">
-                  {file.sheets.map((sheet) => {
-                    const isSheetSelected = isSelected && selectedSheet === sheet.name;
-                    return (
-                      <div
-                        key={sheet.name}
-                        onClick={() => onSelectFile(file.id, sheet.name)}
-                        className={'flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer transition-all text-xs ' + (isSheetSelected ? 'bg-[#eef1ff] text-[#4f6ef7] font-medium' : 'text-[#6b7280] hover:bg-[#f3f4f6]')}
-                      >
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-                        </svg>
-                        <span>{sheet.name}</span>
-                        <span className="ml-auto text-[10px] text-[#9ca3af]">{sheet.rows.length}行</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+              {/* 不再展开 sheets — 统一在顶部工作区切换 */}
             </div>
           );
         })}
