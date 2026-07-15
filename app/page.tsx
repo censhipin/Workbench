@@ -5,7 +5,7 @@ import { ColumnDef, RowData, WorkbenchFile, PlanStep, HistoryItem, ResultSummary
 import type { ExecutionExplanation } from '@/lib/v3/explain';
 import { runQualityCheck, type InferenceResult } from '@/lib/quality';
 import { runAudit as auditEngine } from '@/lib/audit-engine';
-import { mockFiles, quickActions, mockHistory } from '@/lib/mock-data';
+import { quickActions } from '@/lib/mock-data';
 import { loadFiles, saveFile, loadTaskFileIds, saveTaskFileIds, loadHistory } from '@/lib/db';
 import { onTraceUpdate, offTraceUpdate, type PipelineTrace } from '@/lib/pipeline-trace';
 
@@ -187,11 +187,11 @@ export default function Home() {
       if (cancelled) return;
       // 有保存的文件时优先使用，无保存文件时用 mock 数据作为首次体验回退
       const hasSavedFiles = savedFiles.some(f => f && f.id);
-      const allFiles = hasSavedFiles ? savedFiles.filter(f => f && f.id) : mockFiles;
+      const allFiles = savedFiles.filter(f => f && f.id);
       setFiles(allFiles);
       const validTaskIds = hasSavedFiles ? savedIds.filter(s => allFiles.some(f => f.id === s.fileId && f.sheets.some(sh => sh.name === s.sheetName))) : [];
       setTaskSheetsState(validTaskIds);
-      setHistoryItemsBulk(savedHistory.length > 0 ? savedHistory : (hasSavedFiles ? [] : mockHistory));
+      setHistoryItemsBulk(savedHistory.length > 0 ? savedHistory : []);
       if (!selectedFileId && allFiles.length > 0) {
         setSelectedFileId(allFiles[0].id);
       }
