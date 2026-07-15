@@ -49,7 +49,7 @@ function setupAutoUpdater() {
   });
 
   ipcMain.on('install-update', () => {
-    autoUpdater.quitAndInstall(false, true);
+    autoUpdater.quitAndInstall(true, true);
   });
 }
 
