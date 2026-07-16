@@ -304,6 +304,11 @@ export default function Home() {
         ? { ...v, rows: v.rows.map((r, ri) => ri === rowIndex ? { ...r, [colKey]: newValue } : r) }
         : v
     ));
+    // 同步 activeDataset（原始数据模式），使主表实时更新
+    setActiveDataset(prev => {
+      if (!prev) return prev;
+      return { columns: prev.columns, rows: prev.rows.map((r, ri) => ri === rowIndex ? { ...r as any, [colKey]: newValue } : r) };
+    });
   }, [selectedFileId, activeSheet, currentVersionId, setVersions]);
 
   // ── 审计 ────────────────────────────────────────────────

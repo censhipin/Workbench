@@ -194,16 +194,71 @@ const CN_SCALES: Record<string, number> = {
 
 /** 将中文数字字符串转为阿拉伯数字，无法转换时返回 null */
 export function chineseToNumber(str: string): number | null {
-  let s = str.trim().replace(/[约大概左右多余元圆块钱毛分整\s\-]/g, '').trim();
+  let s = str.trim().replace(/[约大概左右多余\s\-]/g, '').trim();
   if (!s) return null;
 
   // 检查是否包含中文数字字符
-  if (![...s].some(c => c in CN_DIGITS || c in CN_SCALES)) return null;
+  if (![...s].some(c => c in CN_DIGITS || c in CN_SCALES || c === '.')) return null;
 
   let negative = false;
   if (s.startsWith('负') || s.startsWith('負')) {
     negative = true;
     s = s.slice(1);
+  }
+
+  // --- 处理小数（元/块/角/毛/分/厘） ---
+  // 按 块/元/圆 分割整数和小数部分
+  let integerPart = '';
+  let decimalPart = '';
+  const blockIdx = s.search(/[块元圆]/);
+  if (blockIdx >= 0) {
+    integerPart = s.slice(0, blockIdx).trim();
+    decimalPart = s.slice(blockIdx + 1).trim();
+  } else {
+    // 没有 块/元/圆 但有 毛/角/分/厘 → 纯小数
+    if (/[毛角分厘]/.test(s)) {
+      integerPart = '零';
+      decimalPart = s;
+    } else {
+      integerPart = s;
+    }
+  }
+
+  // 解析整数部分
+  let intValue = parseChineseInteger(integerPart);
+  if (intValue === null) return null;
+
+  // 解析小数部分：毛/角 = 十分位，分 = 百分位，厘 = 千分位
+  let decValue = 0;
+  if (decimalPart) {
+    const dec: number[] = [];
+    for (const c of decimalPart) {
+      if (c >= '0' && c <= '9') dec.push(parseInt(c, 10));
+      else if (c in CN_DIGITS) dec.push(CN_DIGITS[c]);
+    }
+    if (dec.length >= 1) decValue += dec[0] * 0.1;
+    if (dec.length >= 2) decValue += dec[1] * 0.01;
+    if (dec.length >= 3) decValue += dec[2] * 0.001;
+    if (!integerPart || integerPart === '零' || integerPart === '0') intValue = 0;
+  }
+
+  let result = intValue + decValue;
+  // 四舍五入到4位小数（避免浮点精度问题）
+  result = Math.round(result * 10000) / 10000;
+  if (result === 0) return null;
+  return negative ? -result : result;
+}
+
+/** 解析纯中文/中阿混写整数部分（不含小数单位） */
+function parseChineseInteger(s: string): number | null {
+  s = s.trim().replace(/[元圆块钱毛分厘角]/g, '').trim();
+  if (!s) return 0;
+
+  // 检查是否包含中文数字字符
+  if (![...s].some(c => c in CN_DIGITS || c in CN_SCALES)) {
+    // 纯数字
+    const n = Number(s);
+    return isNaN(n) ? null : n;
   }
 
   let total = 0;
@@ -216,14 +271,9 @@ export function chineseToNumber(str: string): number | null {
     const c = s[i];
 
     if (c >= '0' && c <= '9') {
-      // 阿拉伯数字：收集连续数字段
       let digitStr = '';
-      while (i < s.length && s[i] >= '0' && s[i] <= '9') {
-        digitStr += s[i];
-        i++;
-      }
+      while (i < s.length && s[i] >= '0' && s[i] <= '9') { digitStr += s[i]; i++; }
       const digitNum = parseInt(digitStr, 10);
-      // 有 scale 挂载到当前段，否则直接加到 current
       if (lastScale > 0 && lastScale < 10000) {
         current += (num || 0) * lastScale + digitNum;
         num = 0;
@@ -234,44 +284,27 @@ export function chineseToNumber(str: string): number | null {
     }
     if (c in CN_DIGITS) {
       const d = CN_DIGITS[c];
-      if (d === 0 && lastScale > 0) {
-        lastScale = 0;
-        num = 0;
-      } else {
-        num = d;
-      }
+      if (d === 0 && lastScale > 0) { lastScale = 0; num = 0; }
+      else { num = d; }
     } else if (c in CN_SCALES) {
       const scale = CN_SCALES[c];
-      if (scale >= 10000) {
-        current += num || 0;
-        total += (current || 1) * scale;
-        current = 0;
-        num = 0;
-      } else {
-        current += (num || 1) * scale;
-        num = 0;
-      }
+      if (scale >= 10000) { current += num || 0; total += (current || 1) * scale; current = 0; num = 0; }
+      else { current += (num || 1) * scale; num = 0; }
       lastScale = scale;
     }
     i++;
   }
 
-  // 处理残余数字
   if (num > 0) {
-    if (lastScale >= 10000) {
-      current += num * 1000;
-    } else if (lastScale >= 1000) {
-      current += num * 100;
-    } else if (lastScale >= 100) {
-      current += num * 10;
-    } else {
-      current += num;
-    }
+    if (lastScale >= 10000) current += num * 1000;
+    else if (lastScale >= 1000) current += num * 100;
+    else if (lastScale >= 100) current += num * 10;
+    else current += num;
   }
-
   total += current;
-  if (total === 0) return null;
-  return negative ? -total : total;
+  // 如果全是"零"或无意义字符，返回 0
+  if (total === 0 && s.match(/^[零零\s]*$/)) return 0;
+  return total === 0 ? null : total;
 }
 
 // ---- 异常检测（行级详情 + 可修复标记） ----
