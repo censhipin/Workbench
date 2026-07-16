@@ -210,14 +210,31 @@ export function chineseToNumber(str: string): number | null {
   let current = 0;
   let num = 0;
   let lastScale = 0;
+  let i = 0;
 
-  for (let i = 0; i < s.length; i++) {
+  while (i < s.length) {
     const c = s[i];
 
+    if (c >= '0' && c <= '9') {
+      // 阿拉伯数字：收集连续数字段
+      let digitStr = '';
+      while (i < s.length && s[i] >= '0' && s[i] <= '9') {
+        digitStr += s[i];
+        i++;
+      }
+      const digitNum = parseInt(digitStr, 10);
+      // 有 scale 挂载到当前段，否则直接加到 current
+      if (lastScale > 0 && lastScale < 10000) {
+        current += (num || 0) * lastScale + digitNum;
+        num = 0;
+      } else {
+        current += digitNum;
+      }
+      continue;
+    }
     if (c in CN_DIGITS) {
       const d = CN_DIGITS[c];
       if (d === 0 && lastScale > 0) {
-        // "零"作为占位符：重置 scale，让后面的孤位数字不加倍
         lastScale = 0;
         num = 0;
       } else {
@@ -226,7 +243,6 @@ export function chineseToNumber(str: string): number | null {
     } else if (c in CN_SCALES) {
       const scale = CN_SCALES[c];
       if (scale >= 10000) {
-        // 万/亿：新段
         current += num || 0;
         total += (current || 1) * scale;
         current = 0;
@@ -237,10 +253,10 @@ export function chineseToNumber(str: string): number | null {
       }
       lastScale = scale;
     }
-    // else: 忽略其他字符
+    i++;
   }
 
-  // 处理残余数字（隐含倍数）
+  // 处理残余数字
   if (num > 0) {
     if (lastScale >= 10000) {
       current += num * 1000;

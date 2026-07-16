@@ -768,7 +768,7 @@ function AnomalyEditTable(props: {
         React.createElement('div', { className: 'relative bg-white rounded-xl shadow-2xl border border-zinc-200 w-[400px] p-6' },
           React.createElement('h3', { className: 'text-sm font-semibold text-zinc-800 mb-3' }, '格式转换'),
           React.createElement('p', { className: 'text-xs text-zinc-600 mb-4 leading-relaxed' },
-            '检测到以下列存在中文数字格式异常，请选择需要转换的列：'),
+            '检测到以下列存在中文数字格式异常，是否需要转换为数字格式？'),
           React.createElement('div', { className: 'space-y-2 mb-5' },
             Array.from(convertibleMap.entries()).map(function (_a) {
               var fieldKey = _a[0], group = _a[1];
