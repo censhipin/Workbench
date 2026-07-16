@@ -184,48 +184,52 @@ function AnomalyEditTable(props: {
   const [showNegativeDetail, setShowNegativeDetail] = useState(false);
   // 中文数字转换弹窗
   const [showConvertDialog, setShowConvertDialog] = useState(false);
-  const [showConvertBtn, setShowConvertBtn] = useState(false);
-  // 找出可自动转换的格式异常（中文数字等）
-  const convertibleIssues = useMemo(() => {
-    const items: { rowIndex: number; fieldKey: string; fieldLabel: string; originalValue: string; fixedValue: string }[] = [];
+  const [selectedCols, setSelectedCols] = useState<Set<string>>(new Set());
+  // 按列分组可转换的格式异常
+  const convertibleMap = useMemo(() => {
+    const map = new Map<string, { fieldKey: string; fieldLabel: string; items: { rowIndex: number; originalValue: string }[] }>();
     for (const ri of props.rowIssues) {
       for (const iss of ri.issues) {
         if (iss.issueType === '格式异常' && iss.issueReason === '包含中文数字') {
-          // 从 props 原始数据中获取 fixedValue
-          // 通过 audit-engine 的 chineseToNumber 重新计算
-          items.push({ rowIndex: ri.rowIndex, fieldKey: iss.fieldKey, fieldLabel: iss.fieldLabel, originalValue: iss.originalValue, fixedValue: '' });
+          let group = map.get(iss.fieldKey);
+          if (!group) { group = { fieldKey: iss.fieldKey, fieldLabel: iss.fieldLabel, items: [] }; map.set(iss.fieldKey, group); }
+          group.items.push({ rowIndex: ri.rowIndex, originalValue: iss.originalValue });
         }
       }
     }
-    return items;
+    return map;
   }, [props.rowIssues]);
-  // 组件挂载时，如果有可转换项，弹出转换提示窗
+  const convertibleColKeys = useMemo(() => Array.from(convertibleMap.keys()), [convertibleMap]);
+  // 组件挂载时，如果有可转换项，弹出选择转换窗
   useEffect(function () {
-    if (convertibleIssues.length > 0) {
+    if (convertibleColKeys.length > 0) {
+      setSelectedCols(new Set(convertibleColKeys));
       setShowConvertDialog(true);
     }
   }, []);
-  // 一键应用转换
-  function applyConvert() {
+  // 按选中列应用转换
+  function applySelectedConvert(colSet: Set<string>) {
     setLocalEdits(function (prev) {
       const next: Record<string, Record<string, string>> = {};
       for (const k of Object.keys(prev)) next[k] = { ...prev[k] };
-      for (const item of convertibleIssues) {
-        const cn = chineseToNumber(item.originalValue);
-        if (cn !== null) {
-          const rk = String(item.rowIndex);
-          if (!next[rk]) next[rk] = {};
-          next[rk][item.fieldKey] = String(cn);
+      for (const [fieldKey, group] of convertibleMap) {
+        if (!colSet.has(fieldKey)) continue;
+        for (const item of group.items) {
+          const cn = chineseToNumber(item.originalValue);
+          if (cn !== null) {
+            const rk = String(item.rowIndex);
+            if (!next[rk]) next[rk] = {};
+            next[rk][fieldKey] = String(cn);
+          }
         }
       }
       return next;
     });
     setShowConvertDialog(false);
-    setShowConvertBtn(false);
   }
-  function dismissConvert() {
-    setShowConvertDialog(false);
-    setShowConvertBtn(true);
+  function openConvertDialog() {
+    setSelectedCols(new Set(convertibleColKeys));
+    setShowConvertDialog(true);
   }
   // 编辑后新发现的异常：实时校验编辑值，不依赖旧的 rowIssues
   const localAnomalies = useMemo<Record<number, Record<string, string>>>(() => {
@@ -501,8 +505,8 @@ function AnomalyEditTable(props: {
             onClick: handleSave, disabled: Object.keys(localEdits).length === 0,
             className: 'text-xs px-4 py-1.5 rounded-md bg-blue-600 text-white font-medium hover:bg-blue-700 transition-all duration-200 shadow-sm disabled:opacity-40 disabled:cursor-not-allowed',
           }, '保存修改'),
-          showConvertBtn ? React.createElement('button', {
-            onClick: function () { applyConvert(); setShowConvertBtn(false); },
+          convertibleColKeys.length > 0 && !showConvertDialog ? React.createElement('button', {
+            onClick: openConvertDialog,
             className: 'text-xs px-3 py-1.5 rounded-md bg-amber-500 text-white font-medium hover:bg-amber-600 transition-all duration-200',
           }, '格式转换') : null,
           props.onReAudit ? React.createElement('button', {
@@ -758,16 +762,48 @@ function AnomalyEditTable(props: {
           )
         )
       ),
-      // 格式转换确认弹窗
+      // 格式转换选择弹窗
       showConvertDialog ? React.createElement('div', { className: 'absolute inset-0 z-[70] flex items-center justify-center' },
-        React.createElement('div', { className: 'absolute inset-0 bg-black/20', onClick: dismissConvert }),
-        React.createElement('div', { className: 'relative bg-white rounded-xl shadow-2xl border border-zinc-200 w-[380px] p-6' },
-          React.createElement('h3', { className: 'text-sm font-semibold text-zinc-800 mb-2' }, '格式转换'),
-          React.createElement('p', { className: 'text-xs text-zinc-600 mb-5 leading-relaxed' },
-            '检测到 ' + convertibleIssues.length + ' 处中文数字格式异常，是否需要转换为数字格式？'),
-          React.createElement('div', { className: 'flex items-center justify-end gap-2' },
-            React.createElement('button', { onClick: dismissConvert, className: 'px-4 py-2 text-xs rounded-lg border border-zinc-200 text-zinc-600 hover:bg-zinc-50 transition-colors' }, '取消'),
-            React.createElement('button', { onClick: applyConvert, className: 'px-4 py-2 text-xs rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors' }, '转换'),
+        React.createElement('div', { className: 'absolute inset-0 bg-black/20', onClick: function () { setShowConvertDialog(false); } }),
+        React.createElement('div', { className: 'relative bg-white rounded-xl shadow-2xl border border-zinc-200 w-[400px] p-6' },
+          React.createElement('h3', { className: 'text-sm font-semibold text-zinc-800 mb-3' }, '格式转换'),
+          React.createElement('p', { className: 'text-xs text-zinc-600 mb-4 leading-relaxed' },
+            '检测到以下列存在中文数字格式异常，请选择需要转换的列：'),
+          React.createElement('div', { className: 'space-y-2 mb-5' },
+            Array.from(convertibleMap.entries()).map(function (_a) {
+              var fieldKey = _a[0], group = _a[1];
+              return React.createElement('label', { key: fieldKey, className: 'flex items-center gap-3 px-3 py-2 rounded-lg border cursor-pointer transition-colors ' + (selectedCols.has(fieldKey) ? 'border-blue-300 bg-blue-50' : 'border-zinc-200 hover:bg-zinc-50') },
+                React.createElement('input', {
+                  type: 'checkbox', checked: selectedCols.has(fieldKey),
+                  onChange: function (e: React.ChangeEvent<HTMLInputElement>) {
+                    setSelectedCols(function (prev) { var next = new Set(prev); if (e.target.checked) next.add(fieldKey); else next.delete(fieldKey); return next; });
+                  },
+                  className: 'rounded border-zinc-300 text-blue-600 focus:ring-blue-500',
+                }),
+                React.createElement('div', { className: 'flex-1' },
+                  React.createElement('div', { className: 'text-xs font-medium text-zinc-700' }, group.fieldLabel + '列' + '（' + group.items.length + ' 行）'),
+                  React.createElement('div', { className: 'text-[10px] text-zinc-400 mt-0.5' },
+                    group.items.map(function (it) { return it.originalValue; }).join('、')),
+                ),
+              );
+            }),
+          ),
+          React.createElement('div', { className: 'flex items-center justify-between' },
+            React.createElement('button', {
+              onClick: function () { setSelectedCols(new Set(convertibleColKeys)); },
+              className: 'text-[11px] text-blue-600 hover:text-blue-800 underline',
+            }, '全选'),
+            React.createElement('div', { className: 'flex items-center gap-2' },
+              React.createElement('button', {
+                onClick: function () { setShowConvertDialog(false); },
+                className: 'px-4 py-2 text-xs rounded-lg border border-zinc-200 text-zinc-600 hover:bg-zinc-50 transition-colors',
+              }, '取消'),
+              React.createElement('button', {
+                onClick: function () { applySelectedConvert(selectedCols); },
+                disabled: selectedCols.size === 0,
+                className: 'px-4 py-2 text-xs rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed',
+              }, '转换'),
+            ),
           ),
         ),
       ) : null,
