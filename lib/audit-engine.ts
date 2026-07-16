@@ -134,7 +134,7 @@ export function auditNulls(rows: RowData[], columns: ColumnDef[]): NullFinding[]
     }
   }
 
-  // Tier 3: 扫描所有未检查列（包括数值列），空值率超过阈值则报告
+  // Tier 3: 扫描所有未检查列（包括数值列），只要有空值就报告
   for (let ci = 0; ci < columns.length; ci++) {
     const col = columns[ci];
     if (checked.has(col.key)) continue;
@@ -146,18 +146,14 @@ export function auditNulls(rows: RowData[], columns: ColumnDef[]): NullFinding[]
     }
 
     if (nullCount > 0) {
-      const rate = rows.length > 0 ? nullCount / rows.length : 0;
-      const threshold = col.type === 'number' ? 0.05 : 0.1;
-      if (rate >= threshold) {
-        const records: NullRecord[] = [];
-        for (let ri = 0; ri < rows.length; ri++) {
-          const v = rows[ri][col.key];
-          if (v === null || v === undefined || String(v).trim() === '') {
-            records.push({ rowIndex: ri, fieldKey: col.key, fieldLabel: col.title });
-          }
+      const records: NullRecord[] = [];
+      for (let ri = 0; ri < rows.length; ri++) {
+        const v = rows[ri][col.key];
+        if (v === null || v === undefined || String(v).trim() === '') {
+          records.push({ rowIndex: ri, fieldKey: col.key, fieldLabel: col.title });
         }
-        findings.push({ fieldKey: col.key, fieldLabel: col.title, missingCount: records.length, records });
       }
+      findings.push({ fieldKey: col.key, fieldLabel: col.title, missingCount: records.length, records });
     }
   }
 
@@ -185,6 +181,81 @@ var AMOUNT_KEYWORDS = ['金额', '工资', '收入', '价格', '奖金', '补贴
 
 function isAmountLike(label: string): boolean {
   return matchKeyword(label, AMOUNT_KEYWORDS);
+}
+
+// ---- 中文数字 → 阿拉伯数字 ----
+const CN_DIGITS: Record<string, number> = {
+  '零': 0, '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9,
+  '壹': 1, '贰': 2, '叁': 3, '肆': 4, '伍': 5, '陆': 6, '柒': 7, '捌': 8, '玖': 9, '貳': 2, '參': 3,
+};
+const CN_SCALES: Record<string, number> = {
+  '十': 10, '百': 100, '千': 1000, '拾': 10, '佰': 100, '仟': 1000, '萬': 10000, '万': 10000, '亿': 100000000, '億': 100000000,
+};
+
+/** 将中文数字字符串转为阿拉伯数字，无法转换时返回 null */
+export function chineseToNumber(str: string): number | null {
+  let s = str.trim().replace(/[约大概左右多余元圆块钱毛分整\s\-]/g, '').trim();
+  if (!s) return null;
+
+  // 检查是否包含中文数字字符
+  if (![...s].some(c => c in CN_DIGITS || c in CN_SCALES)) return null;
+
+  let negative = false;
+  if (s.startsWith('负') || s.startsWith('負')) {
+    negative = true;
+    s = s.slice(1);
+  }
+
+  let total = 0;
+  let current = 0;
+  let num = 0;
+  let lastScale = 0;
+
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+
+    if (c in CN_DIGITS) {
+      const d = CN_DIGITS[c];
+      if (d === 0 && lastScale > 0) {
+        // "零"作为占位符：重置 scale，让后面的孤位数字不加倍
+        lastScale = 0;
+        num = 0;
+      } else {
+        num = d;
+      }
+    } else if (c in CN_SCALES) {
+      const scale = CN_SCALES[c];
+      if (scale >= 10000) {
+        // 万/亿：新段
+        current += num || 0;
+        total += (current || 1) * scale;
+        current = 0;
+        num = 0;
+      } else {
+        current += (num || 1) * scale;
+        num = 0;
+      }
+      lastScale = scale;
+    }
+    // else: 忽略其他字符
+  }
+
+  // 处理残余数字（隐含倍数）
+  if (num > 0) {
+    if (lastScale >= 10000) {
+      current += num * 1000;
+    } else if (lastScale >= 1000) {
+      current += num * 100;
+    } else if (lastScale >= 100) {
+      current += num * 10;
+    } else {
+      current += num;
+    }
+  }
+
+  total += current;
+  if (total === 0) return null;
+  return negative ? -total : total;
 }
 
 // ---- 异常检测（行级详情 + 可修复标记） ----
@@ -302,6 +373,42 @@ export function auditAnomalies(rows: RowData[], columns: ColumnDef[]): AnomalyFi
   return findings;
 }
 
+// ---- 列格式推断检测 -- "数据自己说话" ----
+export function auditFormatMismatches(rows: RowData[], columns: ColumnDef[]): AnomalyFinding[] {
+  const findings: AnomalyFinding[] = [];
+  for (let ci = 0; ci < columns.length; ci++) {
+    const col = columns[ci];
+    const key = col.key;
+    let numericCount = 0, totalValid = 0;
+    const nonNumericRows: { rowIndex: number; raw: string; chineseNum: number | null }[] = [];
+    for (let ri = 0; ri < rows.length; ri++) {
+      const raw = rows[ri][key];
+      if (raw === null || raw === undefined) continue;
+      const rawStr = String(raw).trim();
+      if (!rawStr) continue;
+      totalValid++;
+      if (!isNaN(Number(rawStr))) { numericCount++; }
+      else { nonNumericRows.push({ rowIndex: ri, raw: rawStr, chineseNum: chineseToNumber(rawStr) }); }
+    }
+    if (totalValid < 5 || numericCount / totalValid <= 0.5) continue;
+    if (nonNumericRows.length > 0) {
+      const records: AnomalyRecord[] = [];
+      let allCanFix = true;
+      for (const n of nonNumericRows) {
+        const canAutoFix = n.chineseNum !== null;
+        if (!canAutoFix) allCanFix = false;
+        records.push({
+          rowIndex: n.rowIndex, fieldKey: key, fieldLabel: col.title, originalValue: n.raw,
+          issueType: '格式异常', issueReason: n.chineseNum !== null ? '包含中文数字' : '非数字格式',
+          canAutoFix, fixedValue: n.chineseNum !== null ? String(n.chineseNum) : undefined,
+        });
+      }
+      findings.push({ fieldKey: key, fieldLabel: col.title, issueType: '格式异常', count: records.length, affectedRows: records.map(r => r.rowIndex), records, canAutoFix: allCanFix });
+    }
+  }
+  return findings;
+}
+
 // ---- 自动修复函数 ----
 export function autoFixRows(rows: RowData[], anomalies: AnomalyFinding[]): { fixedRows: RowData[]; fixResults: FixResult[] } {
   const fixed = rows.map((r) => { const o: RowData = {}; Object.keys(r).forEach((k) => { o[k] = r[k]; }); return o; });
@@ -364,7 +471,10 @@ export function runAudit(rows: RowData[], columns: ColumnDef[]): AuditReport {
   const duplicates = auditDuplicates(rows, columns);
   const nulls = auditNulls(rows, columns);
   const anomalies = auditAnomalies(rows, columns);
-  const result = computeQualityScore(stats, duplicates, nulls, anomalies);
-  const suggestions = generateSuggestions(duplicates, nulls, anomalies);
-  return { stats, duplicates, nulls, anomalies, qualityScore: result.score, qualityGrade: result.grade, suggestions };
+  // 列格式推断检测 — "数据自己说话"
+  const mismatches = auditFormatMismatches(rows, columns);
+  const allAnomalies = anomalies.concat(mismatches);
+  const result = computeQualityScore(stats, duplicates, nulls, allAnomalies);
+  const suggestions = generateSuggestions(duplicates, nulls, allAnomalies);
+  return { stats, duplicates, nulls, anomalies: allAnomalies, qualityScore: result.score, qualityGrade: result.grade, suggestions };
 }

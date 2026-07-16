@@ -6,7 +6,7 @@ import {
   DuplicateFinding, NullFinding, AnomalyFinding, AnomalyRecord,
   FixResult, ColumnDef, RowData,
 } from '@/lib/types';
-import { autoFixRows } from '@/lib/audit-engine';
+import { autoFixRows, chineseToNumber } from '@/lib/audit-engine';
 import { getColumnType, type InferenceResult } from '@/lib/quality';
 
 /* ============================================================
@@ -182,6 +182,51 @@ function AnomalyEditTable(props: {
   // 用户确认负数金额为正常的行
   const [dismissedNegativeRows, setDismissedNegativeRows] = useState<Set<number>>(new Set());
   const [showNegativeDetail, setShowNegativeDetail] = useState(false);
+  // 中文数字转换弹窗
+  const [showConvertDialog, setShowConvertDialog] = useState(false);
+  const [showConvertBtn, setShowConvertBtn] = useState(false);
+  // 找出可自动转换的格式异常（中文数字等）
+  const convertibleIssues = useMemo(() => {
+    const items: { rowIndex: number; fieldKey: string; fieldLabel: string; originalValue: string; fixedValue: string }[] = [];
+    for (const ri of props.rowIssues) {
+      for (const iss of ri.issues) {
+        if (iss.issueType === '格式异常' && iss.issueReason === '包含中文数字') {
+          // 从 props 原始数据中获取 fixedValue
+          // 通过 audit-engine 的 chineseToNumber 重新计算
+          items.push({ rowIndex: ri.rowIndex, fieldKey: iss.fieldKey, fieldLabel: iss.fieldLabel, originalValue: iss.originalValue, fixedValue: '' });
+        }
+      }
+    }
+    return items;
+  }, [props.rowIssues]);
+  // 组件挂载时，如果有可转换项，弹出转换提示窗
+  useEffect(function () {
+    if (convertibleIssues.length > 0) {
+      setShowConvertDialog(true);
+    }
+  }, []);
+  // 一键应用转换
+  function applyConvert() {
+    setLocalEdits(function (prev) {
+      const next: Record<string, Record<string, string>> = {};
+      for (const k of Object.keys(prev)) next[k] = { ...prev[k] };
+      for (const item of convertibleIssues) {
+        const cn = chineseToNumber(item.originalValue);
+        if (cn !== null) {
+          const rk = String(item.rowIndex);
+          if (!next[rk]) next[rk] = {};
+          next[rk][item.fieldKey] = String(cn);
+        }
+      }
+      return next;
+    });
+    setShowConvertDialog(false);
+    setShowConvertBtn(false);
+  }
+  function dismissConvert() {
+    setShowConvertDialog(false);
+    setShowConvertBtn(true);
+  }
   // 编辑后新发现的异常：实时校验编辑值，不依赖旧的 rowIssues
   const localAnomalies = useMemo<Record<number, Record<string, string>>>(() => {
     const result: Record<number, Record<string, string>> = {};
@@ -456,6 +501,10 @@ function AnomalyEditTable(props: {
             onClick: handleSave, disabled: Object.keys(localEdits).length === 0,
             className: 'text-xs px-4 py-1.5 rounded-md bg-blue-600 text-white font-medium hover:bg-blue-700 transition-all duration-200 shadow-sm disabled:opacity-40 disabled:cursor-not-allowed',
           }, '保存修改'),
+          showConvertBtn ? React.createElement('button', {
+            onClick: function () { applyConvert(); setShowConvertBtn(false); },
+            className: 'text-xs px-3 py-1.5 rounded-md bg-amber-500 text-white font-medium hover:bg-amber-600 transition-all duration-200',
+          }, '格式转换') : null,
           props.onReAudit ? React.createElement('button', {
             onClick: handleReAudit,
             className: 'text-xs px-3 py-1.5 rounded-md border border-zinc-200 text-zinc-600 hover:bg-zinc-100 transition-all duration-200',
@@ -514,39 +563,62 @@ function AnomalyEditTable(props: {
                       className: 'text-[10px] text-amber-600 hover:text-amber-800 underline',
                     }, '确认正常'),
               ),
-              // 该行所有列数据展示
-              React.createElement('div', { className: 'grid gap-px bg-zinc-100 rounded-b-lg overflow-hidden', style: { gridTemplateColumns: 'auto 1fr' } },
-                allCols.reduce(function (acc: React.ReactNode[], col) {
-                  var cv = getCellVal(rowIndex, col.key);
-                  var isNeg = negFieldKeys.has(col.key);
-                  var alreadyConfirmed = dismissedNegativeRows.has(rowIndex);
-                  var displayVal = cv || '-';
-                  acc.push(
-                    React.createElement('div', { key: col.key + '-l', className: 'bg-white px-3 py-1.5 text-[11px] text-zinc-500 font-medium flex items-center' }, col.title),
-                    isNeg && !alreadyConfirmed
-                      ? React.createElement('div', { key: col.key + '-v', className: 'bg-white px-3 py-1 flex items-center' },
-                        React.createElement('input', {
-                          defaultValue: cv,
-                          onBlur: function (e: React.FocusEvent<HTMLInputElement>) {
-                            var newVal = e.currentTarget.value;
-                            if (newVal !== cv) {
-                              if (props.onCellEdit) props.onCellEdit(rowIndex, col.key, newVal);
-                              setLocalEdits(function (prev) {
-                                var next = { ...prev };
-                                var rk = String(rowIndex);
-                                if (!next[rk]) next[rk] = {};
-                                next[rk] = { ...next[rk], [col.key]: newVal };
-                                return next;
-                              });
-                            }
-                          },
-                          className: 'w-full text-[11px] border border-red-300 bg-red-50 rounded px-1.5 py-0.5 text-red-700 font-medium outline-none focus:border-blue-400 focus:bg-blue-50 focus:text-blue-700',
-                        })
-                      )
-                      : React.createElement('div', { key: col.key + '-v', className: 'bg-white px-3 py-1.5 text-[11px] ' + (isNeg ? 'text-blue-600 font-medium' : 'text-zinc-700') + ' truncate' }, displayVal),
-                  );
-                  return acc;
-                }, [])
+              // 该行所有列数据展示 - 横向表格（一行数据只占一行）
+              React.createElement('div', { className: 'overflow-x-auto' },
+                React.createElement('table', { className: 'w-full text-xs border-collapse' },
+                  React.createElement('thead', null,
+                    React.createElement('tr', null,
+                      allCols.map(function (col) {
+                        var isNegCol = negFieldKeys.has(col.key);
+                        return React.createElement('th', {
+                          key: col.key,
+                          className: 'text-left px-2 py-1 text-[10px] font-medium ' + (isNegCol && !dismissedNegativeRows.has(rowIndex) ? 'text-red-500' : 'text-zinc-400') + ' border-b border-zinc-200 whitespace-nowrap bg-amber-50/80',
+                        }, col.title);
+                      }),
+                      React.createElement('th', { className: 'px-2 py-1 border-b border-zinc-200 w-[70px] bg-amber-50/80' }),
+                    ),
+                  ),
+                  React.createElement('tbody', null,
+                    React.createElement('tr', null,
+                      allCols.map(function (col) {
+                        var cv = getCellVal(rowIndex, col.key);
+                        var isNeg = negFieldKeys.has(col.key);
+                        return React.createElement('td', { key: col.key, className: 'px-2 py-1 border-b border-zinc-100 align-middle' },
+                          isNeg && !dismissedNegativeRows.has(rowIndex)
+                            ? React.createElement('input', {
+                                defaultValue: cv,
+                                onBlur: function (e: React.FocusEvent<HTMLInputElement>) {
+                                  var newVal = e.currentTarget.value;
+                                  if (newVal !== cv) {
+                                    if (props.onCellEdit) props.onCellEdit(rowIndex, col.key, newVal);
+                                    setLocalEdits(function (prev) {
+                                      var next = { ...prev };
+                                      var rk = String(rowIndex);
+                                      if (!next[rk]) next[rk] = {};
+                                      next[rk] = { ...next[rk], [col.key]: newVal };
+                                      return next;
+                                    });
+                                  }
+                                },
+                                className: 'w-full min-w-[60px] text-[11px] border border-red-300 bg-red-50 rounded px-1.5 py-0.5 text-red-700 font-medium outline-none focus:border-blue-400 focus:bg-blue-50 focus:text-blue-700',
+                              })
+                            : React.createElement('span', { className: 'text-[11px] ' + (isNeg ? 'text-blue-600 font-medium' : 'text-zinc-700') + ' truncate block max-w-[120px]' }, cv || '-'),
+                        );
+                      }),
+                      React.createElement('td', { className: 'px-2 py-1 border-b border-zinc-100 align-middle' },
+                        dismissedNegativeRows.has(rowIndex)
+                          ? React.createElement('span', { className: 'text-[10px] text-blue-600 font-medium whitespace-nowrap flex items-center gap-1' },
+                              React.createElement('svg', { width: '10', height: '10', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '3', strokeLinecap: 'round', strokeLinejoin: 'round' },
+                                React.createElement('path', { d: 'M20 6L9 17l-5-5' })),
+                              '已确认')
+                          : React.createElement('button', {
+                              onClick: function () { setDismissedNegativeRows(function (prev) { var next = new Set(prev); next.add(rowIndex); return next; }); },
+                              className: 'text-[10px] text-amber-600 hover:text-amber-800 underline whitespace-nowrap',
+                            }, '确认正常'),
+                      ),
+                    ),
+                  ),
+                ),
               ),
             );
           })
@@ -686,6 +758,19 @@ function AnomalyEditTable(props: {
           )
         )
       ),
+      // 格式转换确认弹窗
+      showConvertDialog ? React.createElement('div', { className: 'absolute inset-0 z-[70] flex items-center justify-center' },
+        React.createElement('div', { className: 'absolute inset-0 bg-black/20', onClick: dismissConvert }),
+        React.createElement('div', { className: 'relative bg-white rounded-xl shadow-2xl border border-zinc-200 w-[380px] p-6' },
+          React.createElement('h3', { className: 'text-sm font-semibold text-zinc-800 mb-2' }, '格式转换'),
+          React.createElement('p', { className: 'text-xs text-zinc-600 mb-5 leading-relaxed' },
+            '检测到 ' + convertibleIssues.length + ' 处中文数字格式异常，是否需要转换为数字格式？'),
+          React.createElement('div', { className: 'flex items-center justify-end gap-2' },
+            React.createElement('button', { onClick: dismissConvert, className: 'px-4 py-2 text-xs rounded-lg border border-zinc-200 text-zinc-600 hover:bg-zinc-50 transition-colors' }, '取消'),
+            React.createElement('button', { onClick: applyConvert, className: 'px-4 py-2 text-xs rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors' }, '转换'),
+          ),
+        ),
+      ) : null,
     )
   );
 }
@@ -722,7 +807,7 @@ export default function DataAudit(props: DataAuditProps) {
     }
     setTimeout(advance, 300);
     return function () { cancelled = true; };
-  }, []);
+  }, [phase]);
 
   // 重新检测：委托父组件用最新数据重建 auditReport
   function handleFullReAudit() {
