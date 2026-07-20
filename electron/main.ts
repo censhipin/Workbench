@@ -71,12 +71,12 @@ function downloadUpdate() {
 
   const dlUrl = latestExeUrl;
 
-  // 先试直连：github.com（小概率能通）
-  downloadWithFailback(dlUrl, exePath, 8000, () => {
-    // 直连失败，走 ghproxy 镜像
+  // 直连 github.com（如果用户开了全局代理能通）
+  downloadWithFailback(dlUrl, exePath, 15000, () => {
+    // 直连失败 → 走镜像
     const mirrorUrl = `https://ghproxy.net/${encodeURI(dlUrl)}`;
-    downloadWithFailback(mirrorUrl, exePath, 300000, () => {
-      mainWindow?.webContents.send('update-error', `下载失败。请前往 https://github.com/${OWNER}/${REPO}/releases/latest 手动下载`);
+    downloadWithFailback(mirrorUrl, exePath, 600000, () => {
+      mainWindow?.webContents.send('update-error', `下载失败，请前往 GitHub Releases 手动下载`);
     });
   });
 }
