@@ -43,13 +43,13 @@ function checkForUpdates() {
         } else {
           mainWindow?.webContents.send('update-not-available');
         }
-      } catch {
-        mainWindow?.webContents.send('update-not-available');
+      } catch (e) {
+        mainWindow?.webContents.send('update-error', String(e));
       }
     });
   });
-  req.on('error', () => mainWindow?.webContents.send('update-not-available'));
-  req.setTimeout(15000, () => { req.destroy(); mainWindow?.webContents.send('update-not-available'); });
+  req.on('error', (e) => mainWindow?.webContents.send('update-error', e.message));
+  req.setTimeout(15000, () => { req.destroy(); mainWindow?.webContents.send('update-error', '检查更新超时'); });
 }
 
 function compareVersion(a: string, b: string): number {
@@ -66,43 +66,43 @@ function downloadUpdate() {
 
   const tmpDir = path.join(app.getPath('temp'), 'datapilot-update');
   if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
-  const exePath = path.join(tmpDir, `DataPilot-Setup-${latestVersion}.exe`);
+  const exePath = path.join(tmpDir, `DataPilot Setup ${latestVersion}.exe`);
   downloadedExePath = exePath;
 
-  // 直连尝试：用 github.com 下载（不翻墙大概率会超时，快速切换到镜像）
-  if (!latestExeUrl) return;
   const dlUrl = latestExeUrl;
-  downloadWithTimeout(dlUrl, exePath, 5000, () => {
+
+  // 先试直连：github.com（小概率能通）
+  downloadWithFailback(dlUrl, exePath, 8000, () => {
     // 直连失败，走 ghproxy 镜像
     const mirrorUrl = `https://ghproxy.net/${encodeURI(dlUrl)}`;
-    downloadWithTimeout(mirrorUrl, exePath, 300000, () => {
-      // 镜像也失败，提供手动下载链接
-      mainWindow?.webContents.send('update-error', `下载失败。请前往 GitHub Releases 手动下载`);
+    downloadWithFailback(mirrorUrl, exePath, 300000, () => {
+      mainWindow?.webContents.send('update-error', `下载失败。请前往 https://github.com/${OWNER}/${REPO}/releases/latest 手动下载`);
     });
   });
 }
 
-function downloadWithTimeout(url: string, destPath: string, timeoutMs: number, onFail: () => void) {
+function downloadWithFailback(url: string, destPath: string, timeoutMs: number, onFail: () => void) {
   const proto = url.startsWith('https') ? https : http;
   const file = fs.createWriteStream(destPath);
   let completed = false;
   let totalSize = 0;
   let downloaded = 0;
 
+  // 确保后续 same-key 重连不传 stale stream
   const req = proto.get(url, { headers: { 'User-Agent': 'DataPilot-Updater' } }, (res) => {
     // 处理重定向
     if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
       const loc = res.headers.location;
       file.close();
-      downloadWithTimeout(loc, destPath, timeoutMs, onFail);
+      downloadWithFailback(loc, destPath, timeoutMs, onFail);
       return;
     }
     totalSize = parseInt(String(res.headers['content-length'] || '0'), 10);
-    let lastPct = 0;
+    let lastPct = -1;
     res.on('data', (chunk: Buffer) => {
       downloaded += chunk.length;
       file.write(chunk);
-      const pct = totalSize > 0 ? Math.round((downloaded / totalSize) * 100) : Math.min(Math.round(downloaded / (170 * 1024 * 1024) * 100), 99);
+      const pct = totalSize > 0 ? Math.min(99, Math.round((downloaded / totalSize) * 100)) : -1;
       if (pct > lastPct) { lastPct = pct; mainWindow?.webContents.send('download-progress', pct); }
     });
     res.on('end', () => {
@@ -112,17 +112,22 @@ function downloadWithTimeout(url: string, destPath: string, timeoutMs: number, o
       mainWindow?.webContents.send('update-downloaded');
     });
   });
-  req.on('error', () => { file.close(); if (!completed) try { fs.unlinkSync(destPath); } catch {} onFail(); });
-  req.setTimeout(timeoutMs, () => { req.destroy(); file.close(); if (!completed) onFail(); });
+  req.on('error', () => {
+    file.close();
+    if (!completed) { try { fs.unlinkSync(destPath); } catch {} onFail(); }
+  });
+  req.setTimeout(timeoutMs, () => {
+    req.destroy();
+    file.close();
+    if (!completed) onFail();
+  });
 }
 
 function installUpdate() {
   if (!downloadedExePath || !fs.existsSync(downloadedExePath)) {
-    // 打不开文件就打开下载页面
     shell.openExternal(`https://github.com/${OWNER}/${REPO}/releases/latest`);
     return;
   }
-  // 运行安装程序
   spawn(downloadedExePath, ['/S'], { detached: true, stdio: 'ignore' }).unref();
   setTimeout(() => app.quit(), 1000);
 }
@@ -131,77 +136,58 @@ function installUpdate() {
 
 function setupAutoUpdater() {
   if (isDev) return;
-
-  autoUpdater.checkForUpdates();
   ipcMain.on('check-for-update', () => checkForUpdates());
   ipcMain.on('download-update', () => downloadUpdate());
   ipcMain.on('install-update', () => installUpdate());
 }
-
-// 占位对象实现 autoUpdater 接口（使现有 preload 工作）
-const autoUpdater = {
-  checkForUpdates,
-};
 
 /** 生产环境：用 Electron 内置的 Node.js 启动 standalone server */
 function startProdServer(): Promise<void> {
   return new Promise((resolve, reject) => {
     const serverDir = path.join(process.resourcesPath, 'app', '.next', 'standalone');
     const serverPath = path.join(serverDir, 'server.js');
-
     serverProcess = spawn(process.execPath, [serverPath], {
       cwd: serverDir,
       env: { ...process.env, NODE_ENV: 'production', PORT: String(PORT), ELECTRON_RUN_AS_NODE: '1' },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
-
-    serverProcess.stdout?.on('data', (data: Buffer) => { console.log(`[next] ${data.toString().trim()}`); });
-    serverProcess.stderr?.on('data', (data: Buffer) => { console.log(`[next] ${data.toString().trim()}`); });
-    serverProcess.on('error', (err) => { console.error('[server] Failed to start:', err); reject(err); });
-    serverProcess.on('exit', (code) => { if (code !== 0) console.error(`[server] Exited with code ${code}`); });
-
+    serverProcess.stdout?.on('data', (d: Buffer) => console.log(`[next] ${d.toString().trim()}`));
+    serverProcess.stderr?.on('data', (d: Buffer) => console.log(`[next] ${d.toString().trim()}`));
+    serverProcess.on('error', (e) => reject(e));
+    serverProcess.on('exit', (c) => { if (c !== 0) console.error(`[server] Exited with code ${c}`); });
     let attempts = 0;
-    const maxAttempts = 90;
+    const max = 90;
     const check = () => {
       attempts++;
-      const req = http.get(`http://localhost:${PORT}`, (res) => { res.resume(); resolve(); });
-      req.on('error', () => {
-        req.destroy();
-        if (attempts >= maxAttempts) reject(new Error(`Server not ready after ${maxAttempts} attempts`));
+      http.get(`http://localhost:${PORT}`, (r) => { r.resume(); resolve(); }).on('error', () => {
+        if (attempts >= max) reject(new Error(`Server not ready after ${max} attempts`));
         else setTimeout(check, 1000);
       });
-      req.end();
     };
     check();
   });
 }
 
-/** 开发模式：用 npm script 启动 next dev */
+/** 开发模式 */
 function startDevServer(): Promise<void> {
   return new Promise((resolve, reject) => {
-    const projectRoot = app.getAppPath();
-    const nextBin = path.join(projectRoot, 'node_modules', 'next', 'dist', 'bin', 'next');
-
+    const root = app.getAppPath();
+    const nextBin = path.join(root, 'node_modules', 'next', 'dist', 'bin', 'next');
     serverProcess = spawn(process.execPath, [nextBin, 'dev', '-p', String(PORT)], {
-      cwd: projectRoot,
+      cwd: root,
       env: { ...process.env, NODE_ENV: 'development', PORT: String(PORT) },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
-
-    serverProcess.stdout?.on('data', (data: Buffer) => { process.stdout.write(`[next] ${data}`); });
-    serverProcess.stderr?.on('data', (data: Buffer) => { process.stderr.write(`[next] ${data}`); });
-
+    serverProcess.stdout?.on('data', (d: Buffer) => process.stdout.write(`[next] ${d}`));
+    serverProcess.stderr?.on('data', (d: Buffer) => process.stderr.write(`[next] ${d}`));
     let attempts = 0;
-    const maxAttempts = 90;
+    const max = 90;
     const check = () => {
       attempts++;
-      const req = http.get(`http://localhost:${PORT}`, () => { req.destroy(); resolve(); });
-      req.on('error', () => {
-        req.destroy();
-        if (attempts >= maxAttempts) reject(new Error(`Dev server not ready after ${maxAttempts} attempts`));
+      http.get(`http://localhost:${PORT}`, () => { resolve(); }).on('error', () => {
+        if (attempts >= max) reject(new Error(`Dev server not ready after ${max} attempts`));
         else setTimeout(check, 1000);
       });
-      req.end();
     };
     check();
   });
@@ -209,47 +195,25 @@ function startDevServer(): Promise<void> {
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1400,
-    height: 900,
-    minWidth: 1024,
-    minHeight: 700,
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-    },
+    width: 1400, height: 900, minWidth: 1024, minHeight: 700,
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
     autoHideMenuBar: true,
   });
-
-  const loadApp = isDev ? startDevServer() : startProdServer();
-
-  loadApp
+  (isDev ? startDevServer() : startProdServer())
     .then(() => mainWindow?.loadURL(`http://localhost:${PORT}`))
-    .catch((err) => {
-      console.error('Failed to start server:', err);
-      mainWindow?.loadURL(`data:text/html,<h1>启动失败</h1><p>${encodeURIComponent(String(err))}</p>`);
-    });
-
+    .catch((e) => mainWindow?.loadURL(`data:text/html,<h1>启动失败</h1><p>${encodeURIComponent(String(e))}</p>`));
   mainWindow.on('closed', () => { mainWindow = null; });
 }
 
 app.whenReady().then(() => {
   createWindow();
   setupAutoUpdater();
-
-  // 启动 10 秒后自动检查更新
   setTimeout(() => checkForUpdates(), 10000);
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
-  });
+  app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 
 app.on('window-all-closed', () => {
   if (serverProcess) { serverProcess.kill(); serverProcess = null; }
   if (process.platform !== 'darwin') app.quit();
 });
-
-app.on('before-quit', () => {
-  if (serverProcess) { serverProcess.kill(); serverProcess = null; }
-});
+app.on('before-quit', () => { if (serverProcess) { serverProcess.kill(); serverProcess = null; } });
