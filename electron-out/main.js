@@ -34,103 +34,175 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 const electron_1 = require("electron");
-const electron_updater_1 = require("electron-updater");
 const child_process_1 = require("child_process");
 const path = __importStar(require("path"));
+const https = __importStar(require("https"));
+const fs = __importStar(require("fs"));
 const http = __importStar(require("http"));
 let mainWindow = null;
 let serverProcess = null;
 const isDev = !electron_1.app.isPackaged;
 const PORT = Number(process.env.PORT) || 3000;
-// ── 自动更新 ──
-electron_updater_1.autoUpdater.autoDownload = false;
-electron_updater_1.autoUpdater.autoInstallOnAppQuit = true;
+const OWNER = 'censhipin';
+const REPO = 'Workbench';
+// ── 自定义自动更新（不依赖 electron-updater，国内可直连） ──
+let latestVersion = null;
+let latestExeUrl = null;
+let downloadedExePath = null;
+function checkForUpdates() {
+    const apiUrl = `https://api.github.com/repos/${OWNER}/${REPO}/releases/latest`;
+    const req = https.get(apiUrl, {
+        headers: { 'User-Agent': 'DataPilot-Updater', 'Accept': 'application/json' },
+    }, (res) => {
+        let body = '';
+        res.on('data', (c) => body += c);
+        res.on('end', () => {
+            try {
+                const release = JSON.parse(body);
+                const remoteVersion = (release.tag_name || '').replace(/^v/, '');
+                const currentVersion = electron_1.app.getVersion();
+                const exeAsset = (release.assets || []).find((a) => a.name && a.name.endsWith('.exe') && !a.name.includes('blockmap'));
+                if (!exeAsset) {
+                    mainWindow?.webContents.send('update-not-available');
+                    return;
+                }
+                if (compareVersion(remoteVersion, currentVersion) > 0) {
+                    latestVersion = remoteVersion;
+                    latestExeUrl = exeAsset.browser_download_url;
+                    mainWindow?.webContents.send('update-available', remoteVersion);
+                }
+                else {
+                    mainWindow?.webContents.send('update-not-available');
+                }
+            }
+            catch {
+                mainWindow?.webContents.send('update-not-available');
+            }
+        });
+    });
+    req.on('error', () => mainWindow?.webContents.send('update-not-available'));
+    req.setTimeout(15000, () => { req.destroy(); mainWindow?.webContents.send('update-not-available'); });
+}
+function compareVersion(a, b) {
+    const pa = a.split('.').map(Number), pb = b.split('.').map(Number);
+    for (let i = 0; i < 3; i++) {
+        if ((pa[i] || 0) > (pb[i] || 0))
+            return 1;
+        if ((pa[i] || 0) < (pb[i] || 0))
+            return -1;
+    }
+    return 0;
+}
+function downloadUpdate() {
+    if (!latestExeUrl || !latestVersion)
+        return;
+    const tmpDir = path.join(electron_1.app.getPath('temp'), 'datapilot-update');
+    if (!fs.existsSync(tmpDir))
+        fs.mkdirSync(tmpDir, { recursive: true });
+    const exePath = path.join(tmpDir, `DataPilot-Setup-${latestVersion}.exe`);
+    downloadedExePath = exePath;
+    // 直连尝试：用 github.com 下载（不翻墙大概率会超时，快速切换到镜像）
+    if (!latestExeUrl)
+        return;
+    const dlUrl = latestExeUrl;
+    downloadWithTimeout(dlUrl, exePath, 5000, () => {
+        // 直连失败，走 ghproxy 镜像
+        const mirrorUrl = `https://ghproxy.net/${encodeURI(dlUrl)}`;
+        downloadWithTimeout(mirrorUrl, exePath, 300000, () => {
+            // 镜像也失败，提供手动下载链接
+            mainWindow?.webContents.send('update-error', `下载失败。请前往 GitHub Releases 手动下载`);
+        });
+    });
+}
+function downloadWithTimeout(url, destPath, timeoutMs, onFail) {
+    const proto = url.startsWith('https') ? https : http;
+    const file = fs.createWriteStream(destPath);
+    let completed = false;
+    let totalSize = 0;
+    let downloaded = 0;
+    const req = proto.get(url, { headers: { 'User-Agent': 'DataPilot-Updater' } }, (res) => {
+        // 处理重定向
+        if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+            const loc = res.headers.location;
+            file.close();
+            downloadWithTimeout(loc, destPath, timeoutMs, onFail);
+            return;
+        }
+        totalSize = parseInt(String(res.headers['content-length'] || '0'), 10);
+        let lastPct = 0;
+        res.on('data', (chunk) => {
+            downloaded += chunk.length;
+            file.write(chunk);
+            const pct = totalSize > 0 ? Math.round((downloaded / totalSize) * 100) : Math.min(Math.round(downloaded / (170 * 1024 * 1024) * 100), 99);
+            if (pct > lastPct) {
+                lastPct = pct;
+                mainWindow?.webContents.send('download-progress', pct);
+            }
+        });
+        res.on('end', () => {
+            file.end();
+            completed = true;
+            mainWindow?.webContents.send('download-progress', 100);
+            mainWindow?.webContents.send('update-downloaded');
+        });
+    });
+    req.on('error', () => { file.close(); if (!completed)
+        try {
+            fs.unlinkSync(destPath);
+        }
+        catch { } onFail(); });
+    req.setTimeout(timeoutMs, () => { req.destroy(); file.close(); if (!completed)
+        onFail(); });
+}
+function installUpdate() {
+    if (!downloadedExePath || !fs.existsSync(downloadedExePath)) {
+        // 打不开文件就打开下载页面
+        electron_1.shell.openExternal(`https://github.com/${OWNER}/${REPO}/releases/latest`);
+        return;
+    }
+    // 运行安装程序
+    (0, child_process_1.spawn)(downloadedExePath, ['/S'], { detached: true, stdio: 'ignore' }).unref();
+    setTimeout(() => electron_1.app.quit(), 1000);
+}
+// ── Electron 主流程 ──
 function setupAutoUpdater() {
     if (isDev)
         return;
-    // 启动时不自动 check — 由渲染进程 UpdateNotifier mount 时触发
-    // 以及用户在"关于"面板点击"检查更新"时触发
-    // 强制使用 GitHub API 下载，绕过 github.com 直链被墙问题
-    electron_updater_1.autoUpdater.setFeedURL({
-        provider: 'github',
-        owner: 'censhipin',
-        repo: 'Workbench',
-        host: 'api.github.com',
-    });
-    electron_updater_1.autoUpdater.on('update-available', (info) => {
-        mainWindow?.webContents.send('update-available', info.version);
-    });
-    electron_updater_1.autoUpdater.on('update-not-available', () => {
-        mainWindow?.webContents.send('update-not-available');
-    });
-    electron_updater_1.autoUpdater.on('download-progress', (progress) => {
-        mainWindow?.webContents.send('download-progress', progress.percent);
-    });
-    electron_updater_1.autoUpdater.on('update-downloaded', () => {
-        mainWindow?.webContents.send('update-downloaded');
-    });
-    electron_updater_1.autoUpdater.on('error', (err) => {
-        mainWindow?.webContents.send('update-error', err.message);
-    });
-    electron_1.ipcMain.on('check-for-update', () => {
-        electron_updater_1.autoUpdater.checkForUpdates();
-    });
-    electron_1.ipcMain.on('download-update', () => {
-        electron_updater_1.autoUpdater.downloadUpdate();
-    });
-    electron_1.ipcMain.on('install-update', () => {
-        electron_updater_1.autoUpdater.quitAndInstall(true, true);
-    });
+    autoUpdater.checkForUpdates();
+    electron_1.ipcMain.on('check-for-update', () => checkForUpdates());
+    electron_1.ipcMain.on('download-update', () => downloadUpdate());
+    electron_1.ipcMain.on('install-update', () => installUpdate());
 }
+// 占位对象实现 autoUpdater 接口（使现有 preload 工作）
+const autoUpdater = {
+    checkForUpdates,
+};
 /** 生产环境：用 Electron 内置的 Node.js 启动 standalone server */
 function startProdServer() {
     return new Promise((resolve, reject) => {
-        // asar:false 模式：所有文件物理展开在 resources/app/ 下
         const serverDir = path.join(process.resourcesPath, 'app', '.next', 'standalone');
         const serverPath = path.join(serverDir, 'server.js');
-        // 使用 Electron 内置的 Node.js 可执行文件（ELECTRON_RUN_AS_NODE=1 使它作为普通 Node.js 运行）
         serverProcess = (0, child_process_1.spawn)(process.execPath, [serverPath], {
             cwd: serverDir,
-            env: {
-                ...process.env,
-                NODE_ENV: 'production',
-                PORT: String(PORT),
-                ELECTRON_RUN_AS_NODE: '1',
-            },
+            env: { ...process.env, NODE_ENV: 'production', PORT: String(PORT), ELECTRON_RUN_AS_NODE: '1' },
             stdio: ['pipe', 'pipe', 'pipe'],
         });
-        serverProcess.stdout?.on('data', (data) => {
-            console.log(`[next] ${data.toString().trim()}`);
-        });
-        serverProcess.stderr?.on('data', (data) => {
-            console.log(`[next] ${data.toString().trim()}`);
-        });
-        serverProcess.on('error', (err) => {
-            console.error('[server] Failed to start:', err);
-            reject(err);
-        });
-        serverProcess.on('exit', (code) => {
-            if (code !== 0) {
-                console.error(`[server] Exited with code ${code}`);
-            }
-        });
-        // 轮询等待 Next.js 就绪
+        serverProcess.stdout?.on('data', (data) => { console.log(`[next] ${data.toString().trim()}`); });
+        serverProcess.stderr?.on('data', (data) => { console.log(`[next] ${data.toString().trim()}`); });
+        serverProcess.on('error', (err) => { console.error('[server] Failed to start:', err); reject(err); });
+        serverProcess.on('exit', (code) => { if (code !== 0)
+            console.error(`[server] Exited with code ${code}`); });
         let attempts = 0;
         const maxAttempts = 90;
         const check = () => {
             attempts++;
-            const req = http.get(`http://localhost:${PORT}`, (res) => {
-                res.resume();
-                resolve();
-            });
+            const req = http.get(`http://localhost:${PORT}`, (res) => { res.resume(); resolve(); });
             req.on('error', () => {
                 req.destroy();
-                if (attempts >= maxAttempts) {
+                if (attempts >= maxAttempts)
                     reject(new Error(`Server not ready after ${maxAttempts} attempts`));
-                }
-                else {
+                else
                     setTimeout(check, 1000);
-                }
             });
             req.end();
         };
@@ -140,40 +212,26 @@ function startProdServer() {
 /** 开发模式：用 npm script 启动 next dev */
 function startDevServer() {
     return new Promise((resolve, reject) => {
-        // 在 Windows 上直接调用 node_modules/.bin/next 可能有问题
         const projectRoot = electron_1.app.getAppPath();
         const nextBin = path.join(projectRoot, 'node_modules', 'next', 'dist', 'bin', 'next');
         serverProcess = (0, child_process_1.spawn)(process.execPath, [nextBin, 'dev', '-p', String(PORT)], {
             cwd: projectRoot,
-            env: {
-                ...process.env,
-                NODE_ENV: 'development',
-                PORT: String(PORT),
-            },
+            env: { ...process.env, NODE_ENV: 'development', PORT: String(PORT) },
             stdio: ['pipe', 'pipe', 'pipe'],
         });
-        serverProcess.stdout?.on('data', (data) => {
-            process.stdout.write(`[next] ${data}`);
-        });
-        serverProcess.stderr?.on('data', (data) => {
-            process.stderr.write(`[next] ${data}`);
-        });
+        serverProcess.stdout?.on('data', (data) => { process.stdout.write(`[next] ${data}`); });
+        serverProcess.stderr?.on('data', (data) => { process.stderr.write(`[next] ${data}`); });
         let attempts = 0;
         const maxAttempts = 90;
         const check = () => {
             attempts++;
-            const req = http.get(`http://localhost:${PORT}`, () => {
-                req.destroy();
-                resolve();
-            });
+            const req = http.get(`http://localhost:${PORT}`, () => { req.destroy(); resolve(); });
             req.on('error', () => {
                 req.destroy();
-                if (attempts >= maxAttempts) {
+                if (attempts >= maxAttempts)
                     reject(new Error(`Dev server not ready after ${maxAttempts} attempts`));
-                }
-                else {
+                else
                     setTimeout(check, 1000);
-                }
             });
             req.end();
         };
@@ -200,17 +258,13 @@ function createWindow() {
         console.error('Failed to start server:', err);
         mainWindow?.loadURL(`data:text/html,<h1>启动失败</h1><p>${encodeURIComponent(String(err))}</p>`);
     });
-    mainWindow.on('closed', () => {
-        mainWindow = null;
-    });
+    mainWindow.on('closed', () => { mainWindow = null; });
 }
 electron_1.app.whenReady().then(() => {
     createWindow();
     setupAutoUpdater();
-    // 自动更新：检查并触发更新检查（延迟 10 秒，等服务启动）
-    setTimeout(() => {
-        electron_updater_1.autoUpdater.checkForUpdates();
-    }, 10000);
+    // 启动 10 秒后自动检查更新
+    setTimeout(() => checkForUpdates(), 10000);
     electron_1.app.on('activate', () => {
         if (electron_1.BrowserWindow.getAllWindows().length === 0)
             createWindow();
