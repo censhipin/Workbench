@@ -191,6 +191,12 @@ function createWindow() {
 app.whenReady().then(() => {
   createWindow();
   setupAutoUpdater();
+
+  // 自动更新：检查并触发更新检查（延迟 10 秒，等服务启动）
+  setTimeout(() => {
+    autoUpdater.checkForUpdates();
+  }, 10000);
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });

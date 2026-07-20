@@ -48,7 +48,8 @@ electron_updater_1.autoUpdater.autoInstallOnAppQuit = true;
 function setupAutoUpdater() {
     if (isDev)
         return;
-    electron_updater_1.autoUpdater.checkForUpdates();
+    // 启动时不自动 check — 由渲染进程 UpdateNotifier mount 时触发
+    // 以及用户在"关于"面板点击"检查更新"时触发
     electron_updater_1.autoUpdater.on('update-available', (info) => {
         mainWindow?.webContents.send('update-available', info.version);
     });
@@ -71,7 +72,7 @@ function setupAutoUpdater() {
         electron_updater_1.autoUpdater.downloadUpdate();
     });
     electron_1.ipcMain.on('install-update', () => {
-        electron_updater_1.autoUpdater.quitAndInstall(false, true);
+        electron_updater_1.autoUpdater.quitAndInstall(true, true);
     });
 }
 /** 生产环境：用 Electron 内置的 Node.js 启动 standalone server */
@@ -199,6 +200,10 @@ function createWindow() {
 electron_1.app.whenReady().then(() => {
     createWindow();
     setupAutoUpdater();
+    // 自动更新：检查并触发更新检查（延迟 10 秒，等服务启动）
+    setTimeout(() => {
+        electron_updater_1.autoUpdater.checkForUpdates();
+    }, 10000);
     electron_1.app.on('activate', () => {
         if (electron_1.BrowserWindow.getAllWindows().length === 0)
             createWindow();
