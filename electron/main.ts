@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, net } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import { spawn, ChildProcess, execFileSync } from 'child_process';
 import * as path from 'path';
@@ -19,6 +19,14 @@ function setupAutoUpdater() {
 
   // 启动时不自动 check — 由渲染进程 UpdateNotifier mount 时触发
   // 以及用户在"关于"面板点击"检查更新"时触发
+
+  // 强制使用 GitHub API 下载，绕过 github.com 直链被墙问题
+  autoUpdater.setFeedURL({
+    provider: 'github',
+    owner: 'censhipin',
+    repo: 'Workbench',
+    host: 'api.github.com',
+  } as any);
 
   autoUpdater.on('update-available', (info) => {
     mainWindow?.webContents.send('update-available', info.version);

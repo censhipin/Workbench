@@ -50,6 +50,13 @@ function setupAutoUpdater() {
         return;
     // 启动时不自动 check — 由渲染进程 UpdateNotifier mount 时触发
     // 以及用户在"关于"面板点击"检查更新"时触发
+    // 强制使用 GitHub API 下载，绕过 github.com 直链被墙问题
+    electron_updater_1.autoUpdater.setFeedURL({
+        provider: 'github',
+        owner: 'censhipin',
+        repo: 'Workbench',
+        host: 'api.github.com',
+    });
     electron_updater_1.autoUpdater.on('update-available', (info) => {
         mainWindow?.webContents.send('update-available', info.version);
     });
