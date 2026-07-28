@@ -215,6 +215,8 @@ export interface FormulaPlan {
   conditionOperator?: string;
   /** IF condition compare value */
   conditionValue?: string | number;
+  /** IF 多条件数组 — 每个条件独立比较，最终 AND 连接 */
+  ifConditions?: Array<{ columnKey: string; operator: string; value: unknown }>;
   /** IF true value */
   trueValue?: string | number;
   /** IF false value */

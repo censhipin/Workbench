@@ -547,6 +547,17 @@ function compileFormula(plan: TaskPlan, ctx: ColumnContext): CompileResult {
     output: compileOutput(plan),
   };
 
+  // IF 多条件支持：ifConditions 数组 → 串联多个 condition 比较
+  if (plan.ifConditions && plan.ifConditions.length > 0) {
+    result.ifConditions = [];
+    for (var _gi = 0, _hi = plan.ifConditions; _gi < _hi.length; _gi++) {
+      var ic = _hi[_gi];
+      var icKey = resolveColumn(ic.columnHint, ctx);
+      if (!icKey) return { success: false, error: '找不到 IF 条件列: "' + ic.columnHint + '"' };
+      result.ifConditions.push({ columnKey: icKey, operator: ic.operator, value: ic.value ?? '' });
+    }
+  }
+
 
   return { success: true, plan: result };
 }

@@ -36,3 +36,19 @@ for (const f of electronFiles) {
 }
 
 console.log('✓ Standalone directory ready at', standaloneDir);
+
+// 清理 Next.js 构建残留的 rimraf 临时目录（否则 electron-builder 打包会报错）
+function cleanupTempDirs(dir) {
+  if (!fs.existsSync(dir)) return;
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory() && entry.name.startsWith('rimraf-')) {
+      fs.rmSync(fullPath, { recursive: true, force: true });
+      console.log('✓ Cleaned temp dir:', entry.name);
+    } else if (entry.isDirectory()) {
+      cleanupTempDirs(fullPath);
+    }
+  }
+}
+cleanupTempDirs(standaloneDir);

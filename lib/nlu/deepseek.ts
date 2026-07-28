@@ -127,6 +127,9 @@ ${colDescriptions}${extraTableInfo}
 如果列A大于某值则等于某值，否则等于某值 →
 {"action":"formula","targetColumn":"列B","sourceColumnHints":["列A"],"expressionType":"IF","conditionColumnHint":"列A","conditionOperator":">","conditionValue":"某值","trueValue":"真值","falseValue":"假值"}
 
+如果有多个条件（如 如果列A大于某值且列B小于某值），使用 ifConditions 数组 →
+{"action":"formula","targetColumn":"标签列","sourceColumnHints":["列A","列B"],"expressionType":"IF","ifConditions":[{"columnHint":"列A","operator":">","value":"某值"},{"columnHint":"列B","operator":"<","value":"某值"}],"trueValue":"真值","falseValue":"假值"}
+
 用列A算到今天有多少年 →
 {"action":"formula","targetColumn":"列B","sourceColumnHints":["列A"],"expressionType":"DATEDIF"}
 
@@ -281,6 +284,7 @@ function parseResponse(content: string): TaskPlan {
   if (raw.conditionColumnHint) plan.conditionColumnHint = raw.conditionColumnHint;
   if (raw.conditionOperator) plan.conditionOperator = raw.conditionOperator;
   if (raw.conditionValue !== undefined) plan.conditionValue = raw.conditionValue;
+  if (raw.ifConditions && Array.isArray(raw.ifConditions)) plan.ifConditions = raw.ifConditions;
   if (raw.trueValue !== undefined) plan.trueValue = raw.trueValue;
   if (raw.falseValue !== undefined) plan.falseValue = raw.falseValue;
 

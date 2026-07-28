@@ -148,6 +148,13 @@ function evaluateFunction(node: import('./types').FunctionCallNode, ctx: EvalCon
   const { name, args } = node;
 
   switch (name) {
+    // ── 逻辑函数 ──
+    case 'AND': {
+      for (const arg of args) {
+        if (!isTruthy(evaluate(arg, ctx))) return 0;
+      }
+      return 1;
+    }
     // ── 数学函数 ──
     case 'IF': {
       if (args.length < 3) return null;

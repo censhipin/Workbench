@@ -103,6 +103,8 @@ export interface TaskPlan {
   conditionOperator?: string;
   /** IF condition compare value */
   conditionValue?: string | number;
+  /** IF 多条件数组 — 支持 AND 连接多个筛选条件 */
+  ifConditions?: TaskPlanCondition[];
   /** IF true value */
   trueValue?: string | number;
   /** IF false value */

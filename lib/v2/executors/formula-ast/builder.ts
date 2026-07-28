@@ -170,6 +170,31 @@ function buildStructuredAST(
 
   // IF 特殊处理
   if (expressionType === 'IF') {
+    // 多条件 AND：ifConditions 数组 → 串联比较
+    if (plan.ifConditions && plan.ifConditions.length > 0) {
+      let combinedCond: ASTNode | null = null;
+      for (const ic of plan.ifConditions) {
+        const condCol: ASTNode = { type: 'columnRef', name: ic.columnKey };
+        const cmpOp = ic.operator || '=';
+        const cmpValue: ASTNode = { type: 'literal', value: (ic.value ?? '') as string | number };
+        const singleCond: ASTNode = { type: 'binaryOp', operator: cmpOp, left: condCol, right: cmpValue };
+        if (!combinedCond) {
+          combinedCond = singleCond;
+        } else {
+          // 用 AND 连接多个条件
+          combinedCond = { type: 'functionCall', name: 'AND', args: [combinedCond, singleCond] };
+        }
+      }
+      const trueVal: ASTNode = plan.trueValue !== undefined
+        ? { type: 'literal', value: plan.trueValue }
+        : { type: 'columnRef', name: sourceColumns[0] || '' };
+      const falseVal: ASTNode = plan.falseValue !== undefined
+        ? { type: 'literal', value: plan.falseValue }
+        : { type: 'columnRef', name: sourceColumns[sourceColumns.length > 1 ? 1 : 0] || '' };
+      return { type: 'functionCall', name: 'IF', args: [combinedCond!, trueVal, falseVal] };
+    }
+
+    // 单条件 IF（原有逻辑）
     const condCol: ASTNode = { type: 'columnRef', name: plan.conditionColumn || sourceColumns[0] || '' };
     const cmpOp = plan.conditionOperator || '=';
     const cmpValue: ASTNode = { type: 'literal', value: plan.conditionValue ?? '' };

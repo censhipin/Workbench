@@ -122,7 +122,7 @@ export default function UpdateNotifier() {
             {state.type === 'available' && (
               <>
                 <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>有新版本 {state.version} 可用</p>
-                <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>点击下方按钮开始下载更新</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>点击下方按钮开始下载</p>
                 <button onClick={handleDownload} className="mt-2.5 text-xs px-3.5 py-1.5 rounded-lg text-white font-medium transition-all" style={{ background: 'var(--primary)' }}
                   onMouseEnter={e => e.currentTarget.style.background = 'var(--primary-hover)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'var(--primary)'}
@@ -141,11 +141,11 @@ export default function UpdateNotifier() {
             {state.type === 'downloaded' && (
               <>
                 <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>更新已下载完成</p>
-                <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>重启应用以完成更新</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>点击安装，软件将关闭并弹出安装进度</p>
                 <button onClick={handleInstall} className="mt-2.5 text-xs px-3.5 py-1.5 rounded-lg text-white font-medium transition-all" style={{ background: 'var(--primary)' }}
                   onMouseEnter={e => e.currentTarget.style.background = 'var(--primary-hover)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'var(--primary)'}
-                >立即重启</button>
+                >安装更新</button>
               </>
             )}
             {state.type === 'not-available' && (
