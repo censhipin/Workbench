@@ -37,9 +37,9 @@ export class FormulaVerifier implements Verifier {
       // 新列应在列定义中（由 executor 插入）
     }
 
-    // 文本函数（LEFT/RIGHT/MID）和 TODAY 返回字符串；IF 可返回文本或数字；DATEDIF 返回数字
-    var TEXT_FUNCTIONS = ['LEFT', 'RIGHT', 'MID', 'TODAY', 'IF', 'CONCAT', 'TEXTJOIN', 'TRIM', 'UPPER', 'LOWER', 'SUBSTITUTE'];
-    var isTextFunction = TEXT_FUNCTIONS.indexOf(expressionType) >= 0;
+    // IF/文本函数/条件聚合 — 均可返回文本或数字，不必校验数值类型
+    var SKIP_TYPE_CHECK = ['LEFT', 'RIGHT', 'MID', 'TODAY', 'IF', 'CONCAT', 'TEXTJOIN',
+      'TRIM', 'UPPER', 'LOWER', 'SUBSTITUTE', 'SUMIF', 'COUNTIF', 'AVERAGEIF'].indexOf(expressionType) >= 0;
     var isDateDif = expressionType === 'DATEDIF';
 
     // 检查每行计算结果是否为有效值
@@ -47,12 +47,9 @@ export class FormulaVerifier implements Verifier {
     for (var i = 0; i < outputRows.length; i++) {
       var val = outputRows[i][targetColumn];
       if (val == null || val === '') continue;
-      if (isTextFunction && expressionType === 'IF') {
-        // IF 文本或数字都接受
-        if (typeof val !== 'string' && (typeof val !== 'number' || isNaN(val))) invalidCount++;
-      } else if (isTextFunction) {
-        // 文本函数返回字符串
-        if (typeof val !== 'string') invalidCount++;
+      if (SKIP_TYPE_CHECK) {
+        // 文本函数/IF/条件聚合 — 跳过类型校验
+        continue;
       } else if (isDateDif) {
         // DATEDIF 返回数字（年数）
         if (typeof val !== 'number' || isNaN(val as number)) invalidCount++;
